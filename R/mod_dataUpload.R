@@ -31,18 +31,38 @@ mod_dataUpload_sidebar_ui <- function(id) {
       tags$div(
         style = "margin-bottom: 15px;",
         fileInput(ns("file"), "上传数据文件",
-                  accept = c(".xlsx", "xls", "sas7bdat", ".rda", ".RData"),
+                  accept = c(".xlsx", "xls", "sas7bdat", ".rda", ".RData", ".csv", ".txt"),
                   buttonLabel = "选择文件...",
-                  placeholder = "Excel、SAS或R数据文件")
+                  placeholder = "Excel、SAS、CSV或R数据文件")
       ),
 
       # 文件信息
       tags$div(
         style = "background-color: #f8f9fa; padding: 8px 12px; border-radius: 5px; margin-bottom: 15px; border-left: 3px solid #6c757d;",
-        tags$small(icon("info-circle"), "支持格式: .xlsx, .xls, .sas7bdat, .rda, .RData", style = "color: #6c757d;"),
+        tags$small(icon("info-circle"), "支持格式: .xlsx, .xls, .sas7bdat, .rda, .RData, .csv, .txt", style = "color: #6c757d;"),
         tags$br(),
         tags$small(icon("hard-drive"), "最大文件大小: 100MB", style = "color: #6c757d;")
       ),
+
+      # CSV分隔符选择（条件面板）
+      conditionalPanel(
+        condition = paste0("output['", ns("is_csv_file"), "']"),
+        tags$div(
+          style = "margin-bottom: 15px; padding: 10px; background-color: #f0f8ff; border-radius: 5px;",
+          tags$label("CSV文件选项", style = "font-weight: bold; color: #2c3e50;"),
+          radioButtons(ns("csv_separator"), "分隔符",
+                       choices = c("逗号 (,)" = ",",
+                                   "分号 (;)" = ";",
+                                   "制表符 (Tab)" = "\t",
+                                   "空格" = " "),
+                       selected = ","),
+          radioButtons(ns("csv_decimal"), "小数点",
+                       choices = c("点号 (.)" = ".", "逗号 (,)" = ","),
+                       selected = "."),
+          checkboxInput(ns("csv_header"), "包含表头", value = TRUE)
+        )
+      ),
+
 
       # 数据集名称
       textInput(ns("data_name"), "数据集名称",
@@ -114,12 +134,15 @@ mod_dataUpload_server <- function(id){
     rv <- reactiveValues(
       raw_data = NULL,      # 原始上传数据
       current_data = NULL,  # 当前显示数据（原始或筛选后）
+      filtered_data = NULL, # 筛选后的数据
       data_name = NULL,
       is_filtered = FALSE,  # 标记数据是否经过筛选
       filter_text = "",      # 当前筛选条件文本
       is_resetting = FALSE, # 标记是否正在重置
       reset_trigger = 0,    # 新增：重置触发器，用于通知筛选模块
-      show_denominator_filter = FALSE # 控制分母筛选模块显示
+      show_denominator_filter = FALSE, # 控制分母筛选模块显示
+      denominator_filter_text = "",   # 分母筛选条件文本
+      file_type = NULL      # 文件类型
     )
 
     # 重置文件输入框UI的函数
@@ -153,30 +176,49 @@ mod_dataUpload_server <- function(id){
       return(get(data_frames[1], envir = env))
     }
 
+    # 检查是否为CSV文件
+    output$is_csv_file <- reactive({
+      req(input$file)
+      file_ext <- tolower(tools::file_ext(input$file$name))
+      file_ext %in% c("csv", "txt")
+    })
+    outputOptions(output, "is_csv_file", suspendWhenHidden = FALSE)
+
     # 响应上传文件
     observeEvent(input$file, {
       req(input$file)
 
       tryCatch({
         file_ext <- tolower(tools::file_ext(input$file$name))
+        rv$file_type <- file_ext
 
         if (file_ext %in% c("xlsx", "xls")) {
           df <- readxl::read_excel(input$file$datapath)
         } else if (file_ext %in% c("sas7bdat")) {
-          if (!requireNamespace("haven", quietly = TRUE)) {
-            stop("请先安装haven包: install.packages('haven')")
-          }
           df <- haven::read_sas(input$file$datapath)
+          if (!is.data.frame(df)) {
+            stop("读取的SAS文件没有返回有效的数据框")
+          }
         } else if (file_ext %in% c("rda", "rdata")) {
           df <- extract_data_from_rda(input$file$datapath)
+        } else if (file_ext %in% c("csv", "txt")) {
+          # 读取CSV文件
+          df <- read.csv(input$file$datapath,
+                         sep = input$csv_separator,
+                         dec = input$csv_decimal,
+                         header = input$csv_header,
+                         stringsAsFactors = FALSE,
+                         fileEncoding = "UTF-8")
         } else {
-          stop("请上传Excel文件(.xlsx, .xls)、SAS文件(.sas7bdat)或R数据文件(.rda, .RData)")
+          stop("请上传Excel文件(.xlsx, .xls)、SAS文件(.sas7bdat)、CSV文件(.csv, .txt)或R数据文件(.rda, .RData)")
         }
 
         rv$raw_data <- df
         rv$current_data <- df
+        rv$filtered_data <- NULL
         rv$is_filtered <- FALSE
         rv$filter_text <- ""
+        rv$denominator_filter_text <- ""
 
         data_name <- tools::file_path_sans_ext(input$file$name)
         rv$data_name <- data_name
@@ -207,7 +249,7 @@ mod_dataUpload_server <- function(id){
       list(
         raw_data = rv$raw_data,
         updateFilteredData = function(filtered_df, filter_text) {
-          rv$denominator_filter_text = filter_text
+          rv$denominator_filter_text <- filter_text
         },
         reset_trigger = rv$reset_trigger
       )
@@ -216,7 +258,6 @@ mod_dataUpload_server <- function(id){
     # 监听分析类型变化，控制分母筛选模块显示
     observe({
       # 这里需要从外部获取当前分析类型
-      # 您需要在 app_server.R 中传递分析类型信息
       req(getAnalysisType())
 
       rv$show_denominator_filter <- (getAnalysisType() %in% c("c_describe","q_param"))
@@ -237,6 +278,7 @@ mod_dataUpload_server <- function(id){
       }
     })
 
+    # 监听数据筛选模块的变化
     observe({
       req(data_filter_module()$current_filter_text)
       req(rv$raw_data)
@@ -247,9 +289,10 @@ mod_dataUpload_server <- function(id){
       if (filter_text != "" && filter_text != rv$filter_text && !rv$is_resetting) {
         tryCatch({
           filtered_df <- subset(rv$raw_data, eval(parse(text = filter_text)))
+          rv$filtered_data <- filtered_df
           rv$current_data <- filtered_df
-          rv$is_filtered = TRUE
-          rv$filter_text = filter_text
+          rv$is_filtered <- TRUE
+          rv$filter_text <- filter_text
 
           showNotification(sprintf("筛选完成！从 %d 行筛选到 %d 行",
                                    nrow(rv$raw_data),
@@ -265,10 +308,13 @@ mod_dataUpload_server <- function(id){
     observeEvent(input$clear_data, {
       rv$raw_data <- NULL
       rv$current_data <- NULL
+      rv$filtered_data <- NULL
       rv$data_name <- NULL
       rv$is_filtered <- FALSE
       rv$filter_text <- ""
+      rv$denominator_filter_text <- ""
       rv$is_resetting <- FALSE
+      rv$file_type <- NULL
 
       # 重置文件输入框的显示
       reset_file_input_ui()
@@ -309,6 +355,7 @@ mod_dataUpload_server <- function(id){
     observeEvent(input$reset_data, {
       rv$is_resetting <- TRUE
       rv$current_data <- rv$raw_data
+      rv$filtered_data <- NULL
       rv$is_filtered <- FALSE
       rv$filter_text <- ""
 
@@ -369,7 +416,8 @@ mod_dataUpload_server <- function(id){
         is_filtered = rv$is_filtered,
         filter_text = rv$filter_text,
         denominator_filter_text = rv$denominator_filter_text,
-        show_denominator_filter = rv$show_denominator_filter
+        show_denominator_filter = rv$show_denominator_filter,
+        file_type = rv$file_type
       )
     }))
   })
