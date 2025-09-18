@@ -6,7 +6,6 @@ Authors@R:
 Description: What the package does (one paragraph).
 License: What license is it under?
 Imports: 
-    afex,
     car,
     config,
     dplyr,
@@ -15,24 +14,27 @@ Imports:
     flextable,
     gmodels,
     golem,
+    graphics,
     haven,
     htmltools,
-    kableExtra,
+    magrittr,
     officer,
-    pkgload,
     purrr,
     readxl,
     rlang,
     shiny,
+    stats,
     survival,
-    survminer,
     table1,
-    tibble,
     tidyr,
     tools
 Suggests: 
-    testthat (>= 3.0.0)
+    afex,
+    kableExtra,
+    survminer,
+    testthat (>= 3.0.0),
+    tibble
 Config/testthat/edition: 3
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
