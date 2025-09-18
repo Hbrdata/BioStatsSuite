@@ -1,28 +1,26 @@
 #' q_describe
 #'
-#' @description A utils function
+#' @description A utils function for descriptive statistics of continuous variables
 #'
-#' @return The return value, if any, from executing the utility.
+#' @param data_name Name of the data frame
+#' @param data_cond Data filtering condition
+#' @param var_name Variable name for analysis
+#' @param var_label Variable label
+#' @param group_name Grouping variable name
+#' @param group_cond Group conditions to analyze
+#' @param table_title Table title
+#' @param ftnote Footnote
+#' @param totalyn Whether to output total column (0: no, other: yes)
+#' @param outyn Whether to output table (1: yes, other: no)
 #'
+#' @return A flextable object with descriptive statistics
+#'
+#' @importFrom dplyr filter select group_by summarise bind_rows n all_of
+#' @importFrom rlang parse_expr .data
+#' @importFrom stats median quantile sd setNames
+#' @importFrom flextable flextable set_caption font hline_top hline_bottom hline add_footer_lines
+#' @importFrom magrittr %>%
 #' @noRd
-#'
-#'
-#######连续型变量描述性统计函数#########
-
-# 用途：用于对数据框中数据进行分组统计学描述
-
-#基本参数：
-# data_name   = 用于分析的数据框
-# data_cond   = 数据筛选条件
-# var_name    = 用于分析的变量名称
-# var_label   = 变量标签
-# group_name  = 分组变量名称
-# group_cond  = 需要分析的组别
-# table_title = 表名
-# ftnote      = 底注
-# totalyn     = 是否输出合计列，0：否；其他值：是
-# outyn       = 是否输出表格，其他值：否；1：是
-
 #示例
 
 # adsl<-read_excel("E:/Rlanguage/2-system/R/R/rfile/数据/adsl.xlsx")
@@ -42,14 +40,6 @@
 
 q_describe<-function(data_name,data_cond,var_name,var_label,group_name,group_cond,table_title,ftnote,totalyn,outyn=1)
 {
-  library(readxl)
-  library(dplyr)
-  library(table1)
-  library(tibble)
-  library(kableExtra)
-  library(officer)
-  library(flextable)
-  library(rlang)
 
   ##############根据条件创建数据框###########
   ############## 处理 group_cond 参数 ##############
@@ -72,11 +62,11 @@ q_describe<-function(data_name,data_cond,var_name,var_label,group_name,group_con
   data_0 <- get(data_name)
 
 
-    data_cond_0 <- parse_expr(data_cond)
+    data_cond_0 <- rlang::parse_expr(data_cond)
 
 
     data_0 <- data_0  %>%
-      filter(!!data_cond_0) #根据条件筛选出数据框
+      dplyr::filter(!!data_cond_0) #根据条件筛选出数据框
 
 
   # # 检查分组变量是否存在
@@ -90,7 +80,7 @@ q_describe<-function(data_name,data_cond,var_name,var_label,group_name,group_con
   # }
 
   data_0 <- data_0 %>%
-    filter(.data[[group_name]] %in% group_cond )
+    dplyr::filter(.data[[group_name]] %in% group_cond )
 
   # data_0_out <<- data_0
 
@@ -102,38 +92,38 @@ q_describe<-function(data_name,data_cond,var_name,var_label,group_name,group_con
 
 
   d_0 <- data_0 %>%
-    select(all_of(c(var_expr, group_expr)))
+    dplyr::select(all_of(c(var_expr, group_expr)))
 
   # d_0_out <<- d_0
 
 
-  d_1 <- setNames(d_0,c("var_0","group_0"))
+  d_1 <- stats::setNames(d_0,c("var_0","group_0"))
 
   d_1$group_0 <- factor(d_1$group_0, levels = group_cond)   #将分组变量因子化，并按照输入顺序等级赋值，保证
   #输入顺序即为显示顺序
-  label(d_1$var_0)<-var_label
+  table1::label(d_1$var_0)<-var_label
   # d_1_out <<- d_1
 
 
   #制作表头
   title_0 <- d_1 %>%
-    group_by(group_0) %>%
-    filter(group_0 %in% group_cond) %>%  # 使用filter挑选分组
-    summarise(
-      n = n() # 计数每个组的观测值数量
+    dplyr::group_by(group_0) %>%
+    dplyr::filter(group_0 %in% group_cond) %>%  # 使用filter挑选分组
+    dplyr::summarise(
+      n = dplyr::n() # 计数每个组的观测值数量
     )
 
   title_0_1 <- d_1 %>%
-    summarise(
+    dplyr::summarise(
       group_0 = '合计',
-      n = n(),  # 计数每个组的观测值数量
+      n = dplyr::n()  # 计数每个组的观测值数量
     )
 
-  title_0 <- bind_rows(title_0,title_0_1)
+  title_0 <- dplyr::bind_rows(title_0, title_0_1)
 
   title_0$grp_n = paste(title_0$group_0, '\n(n = ', title_0$n, ')')
 
-  title_0 <- title_0 %>% select(grp_n)
+  title_0 <- title_0 %>% dplyr::select(grp_n)
 
   title_0_0 <- rep(list(NA), ncol(title_0))
   names(title_0_0) <- names(title_0)  # 确保新行的列名与df相同
@@ -156,10 +146,10 @@ q_describe<-function(data_name,data_cond,var_name,var_label,group_name,group_con
   #进行描述性统计
 
   s_0 <- d_1 %>%
-    group_by(group_0) %>%
-    filter(group_0 %in% group_cond) %>%  # 使用filter挑选分组
-    summarise(
-      mean = sprintf('%.2f',mean(var_0, na.rm = TRUE)),  #na.rm=TRUE 表示对于数据中的NA值，确保函数在计算时值考虑非缺失值，得到一个
+    dplyr::group_by(group_0) %>%
+    dplyr::filter(group_0 %in% group_cond) %>%  # 使用filter挑选分组
+    dplyr::summarise(
+      mean = sprintf('%.2f', mean(var_0, na.rm = TRUE)),  #na.rm=TRUE 表示对于数据中的NA值，确保函数在计算时值考虑非缺失值，得到一个
       #基于有效数据的统计结果
       median = sprintf('%.2f',median(var_0, na.rm = TRUE)),
       Q1 = sprintf('%.2f',quantile(var_0,probs = 0.25, type = 2,na.rm = TRUE)),
@@ -179,7 +169,7 @@ q_describe<-function(data_name,data_cond,var_name,var_label,group_name,group_con
   #总计列
 
   s_1 <- d_1 %>%
-    summarise(
+    dplyr::summarise(
       group_0 = '合计',
       mean = sprintf('%.2f',mean(var_0, na.rm = TRUE)),  #na.rm=TRUE 表示对于数据中的NA值，确保函数在计算时值考虑非缺失值，得到一个
       #基于有效数据的统计结果
@@ -198,11 +188,11 @@ q_describe<-function(data_name,data_cond,var_name,var_label,group_name,group_con
       Min_Max = paste(min,',',max)
     )
 
-  s_2 <- bind_rows(s_0,s_1)
+  s_2 <- dplyr::bind_rows(s_0,s_1)
 
   s_2$grp_n = paste(s_2$group_0, '\n(n = ', s_2$n, ')')
 
-  s_2 <- s_2 %>% select(grp_n,N_Missing,Mean_SD,Median_Q1_Q3,Min_Max)
+  s_2 <- s_2 %>% dplyr::select(grp_n,N_Missing,Mean_SD,Median_Q1_Q3,Min_Max)
 
 
   s_3 <- data.frame(matrix(NA,nrow = nrow(s_2) + 1, ncol = ncol(s_2)), stringsAsFactors = FALSE)
@@ -220,7 +210,7 @@ q_describe<-function(data_name,data_cond,var_name,var_label,group_name,group_con
 
   t_1 <- data.frame(matrix(NA,nrow = nrow(t_0) + 1, ncol = ncol(t_0)),stringsAsFactors = FALSE)
 
-  t_1[2,1] <- label(d_1$var_0)
+  t_1[2,1] <- table1::label(d_1$var_0)
 
   t_1[1, ] <- t_0[1, ]
 
@@ -233,7 +223,7 @@ q_describe<-function(data_name,data_cond,var_name,var_label,group_name,group_con
 
   col_names <- t_1[1, ]
   col_names[1,1] <- '  '
-  t_2 <- slice(t_1, -1)# 移除第一行
+  t_2 <- dplyr::slice(t_1, -1)# 移除第一行
   names(t_2) <- col_names # 将第一行的值设置为列名
   # t_2[is.na(t_2)] <- ""   #将数据框中NA显示为空值
   t_2[2,1] <- 'N(Missing)'
@@ -259,23 +249,30 @@ q_describe<-function(data_name,data_cond,var_name,var_label,group_name,group_con
 
   table_out <<-table_out
 
-  ft<-if(outyn==1){
+  ft <- if (outyn == 1) {
     #绘制表格
-    ft <- flextable(table_out)
-    # ft <- theme_vanilla(ft)
+    ft <- flextable::flextable(table_out)
 
+    ft <- flextable::color(ft, part = 'footer', color = 'black')
+    ft <- flextable::set_caption(ft, caption = table_title)
+    ft <- flextable::font(ft, fontname = "Times New Roman", part = "all")
+    ft <- flextable::hline_top(ft, border = flextable::fp_border_default(color = "black", width = 1.5), part = "header")
+    ft <- flextable::hline_bottom(ft, border = flextable::fp_border_default(color = "black", width = 1.5), part = "body")
+    ft <- flextable::hline(ft, i = 1, border = flextable::fp_border_default(color = "black", width = 1), part = "header")
+    ft <- flextable::add_footer_lines(ft, ftnote)
 
-    ft <- color(ft,part = 'footer', color = 'black')
-    ft <- set_caption(ft,caption = table_title)
-    # ft<-font(ft,fontname="SimSun",part="all")
-    ft<-font(ft,fontname="Times New Roman",part="all")
-    ft<-hline_top(ft,border = fp_border_default(color="black",width=1.5),part="header")
-    ft<-hline_bottom(ft,border = fp_border_default(color="black",width=1.5),part="body")
-    ft<-hline(ft,i=1,border = fp_border_default(color="black",width=1),part="header")
-    ft <- add_footer_lines(ft,ftnote)
-    rm(table_out,t_2,envir = .GlobalEnv)
+    # 清理全局变量
+    if (exists('table_out', envir = .GlobalEnv)) {
+      rm(table_out, envir = .GlobalEnv)
+    }
+    if (exists('t_2', envir = .GlobalEnv)) {
+      rm(t_2, envir = .GlobalEnv)
+    }
+
     ft
-
+  } else {
+    NULL
   }
-  ft
+
+  return(ft)
 }

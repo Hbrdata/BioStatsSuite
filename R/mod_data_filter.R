@@ -40,12 +40,22 @@ mod_current_filter_ui <- function(id) {
 #' @noRd
 #'
 #' @importFrom shiny NS tagList
-mod_data_filter_ui <- function(id) {
+mod_data_filter_ui <- function(id,type, show_apply_button = TRUE) {
   ns <- NS(id)
+
+  # 根据参数决定是否显示应用按钮
+  apply_button <- if (show_apply_button) {
+    actionButton(ns("apply_filter"), "应用筛选",
+                 icon = icon("check"),
+                 style = "background-color: #27ae60; color: white;")
+  } else {
+    NULL
+  }
+
   tagList(
     tags$div(
       style = "border: 1px solid #ddd; padding: 15px; margin-bottom: 20px; border-radius: 8px; background-color: #fafafa;",
-      h5("数据筛选", style = "margin-top: 0; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 8px;"),
+      h5(type, style = "margin-top: 0; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 8px;"),
 
       # 筛选条件构建区域
       tags$div(
@@ -90,9 +100,7 @@ mod_data_filter_ui <- function(id) {
           actionButton(ns("add_filter"), "添加条件",
                        icon = icon("plus"),
                        style = "background-color: #3498db; color: white;"),
-          actionButton(ns("apply_filter"), "应用筛选",
-                       icon = icon("check"),
-                       style = "background-color: #27ae60; color: white;"),
+          apply_button,  # 使用条件渲染的按钮
           actionButton(ns("clear_filters"), "清空条件",
                        icon = icon("trash"),
                        style = "background-color: #e74c3c; color: white;")

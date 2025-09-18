@@ -53,6 +53,12 @@ mod_analyze_server <- function(id, data_upload_module) {
     ns <- session$ns
     result <- reactiveVal(NULL)
 
+    # 暴露当前分析类型
+    current_analysis_type <- reactive({
+      input$analysis_type
+    })
+
+
     # 动态渲染参数UI
     output$analysis_params <- renderUI({
       req(input$analysis_type)
@@ -272,6 +278,12 @@ mod_analyze_server <- function(id, data_upload_module) {
       }
     )
 
+    return(reactive({
+      list(
+        result = result(),
+        current_analysis_type = current_analysis_type()
+      )
+    }))
 
 
   })

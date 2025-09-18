@@ -4,6 +4,11 @@
 #'
 #' @return The return value, if any, from executing the utility.
 #'
+#' @importFrom dplyr filter select group_by summarise
+#' @importFrom rlang sym parse_expr
+#' @importFrom survival survfit Surv survdiff
+#' @importFrom flextable flextable set_caption font hline_top hline_bottom hline fp_border_default add_footer_lines autofit
+#' @importFrom officer fp_border
 #' @noRd
 #######生存分析表格#########
 
@@ -44,19 +49,19 @@ lifetest <- function(data_cond,group_c,censor,time_label,timelist,type,topleftla
 {
 
   #生存分析
-  library(readxl)
-  library(dplyr)
-  library(table1)
-  library(tibble)
-  library(kableExtra)
-  library(officer)
-  library(flextable)
-  library(rlang)
-  library(gmodels)
-  library(tidyr)
-  library(purrr)
-  library(survminer)
-  library(survival)
+  # library(readxl)
+  # library(dplyr)
+  # library(table1)
+  # library(tibble)
+  # library(kableExtra)
+  # library(officer)
+  # library(flextable)
+  # library(rlang)
+  # library(gmodels)
+  # library(tidyr)
+  # library(purrr)
+  # library(survminer)
+  # library(survival)
 
   ################## 拆分组别、分析变量 ################################
 
@@ -91,16 +96,16 @@ lifetest <- function(data_cond,group_c,censor,time_label,timelist,type,topleftla
 
   data_0 <- get(data_)
   data_0 <- data_0 %>%
-    filter(!!parse_expr(cond_))
+    dplyr::filter(!!rlang::parse_expr(cond_))
   group_cond <- c(grpnames_)
   data_0 <- data_0 %>%
-    filter(.data[[grpvar_]] %in% group_cond )
+    dplyr::filter(.data[[grpvar_]] %in% group_cond )
   time_var_expr <- rlang::sym(timevar_)
   censor_var_expr <- rlang::sym(censor)
   group_expr <- rlang::sym(grpvar_)
 
   d_0 <- data_0 %>%
-    select({{time_var_expr}},{{censor_var_expr}},{{group_expr}})
+    dplyr::select({{time_var_expr}},{{censor_var_expr}},{{group_expr}})
   d_0 <- setNames(d_0,c("time_0","censor_0","group_0"))
   d_0$grpcd_ <- NA
   for(i in 1:nrow(d_0)){
@@ -114,8 +119,8 @@ lifetest <- function(data_cond,group_c,censor,time_label,timelist,type,topleftla
 
   #计算各个组别的N
   title_0 <- d_0 %>%
-    group_by(grpcd_) %>%
-    summarise(
+    dplyr::group_by(grpcd_) %>%
+    dplyr::summarise(
       n = n(),  # 计数每个组的观测值数量
     )
 
@@ -135,18 +140,17 @@ lifetest <- function(data_cond,group_c,censor,time_label,timelist,type,topleftla
   title_0 <- rbind(title_0_1,title_0)
   title_0[1,4] <- "指标"
   title_0 <- title_0 %>%
-    select(grp_n)
+    dplyr::select(grp_n)
   title_0 <- t(title_0)
 
 
 
   #################### 生存分析结果 ##########
 
-
-  fit <- summary(survfit(Surv(time_0,censor_0)~grpcd_,conf.type="log-log",data = d_0),times = timelist)
-  print(fit)
-  logrank_test <- survdiff(Surv(time_0,censor_0)~grpcd_,data = d_0)
-  print(logrank_test)
+  fit <- summary(survival::survfit(survival::Surv(time_0,censor_0)~grpcd_,conf.type="log-log",data = d_0),times = timelist)
+  # print(fit)
+  logrank_test <- survival::survdiff(survival::Surv(time_0,censor_0)~grpcd_,data = d_0)
+  # print(logrank_test)
 
 
   #结果制表
@@ -206,12 +210,12 @@ lifetest <- function(data_cond,group_c,censor,time_label,timelist,type,topleftla
   survival_result$surv_0 <- paste(survival_result$surv,"(",survival_result$lower,",",survival_result$upper,")")
 
   survival_result_1 <- survival_result %>%
-    select(fit.time,grp_cd,grp_name,surv,lower,upper,surv_0)
+    dplyr::select(fit.time,grp_cd,grp_name,surv,lower,upper,surv_0)
 
   survival_list <- list()
   for (i in 1:grp_num){
     survival_list[[i]] <- survival_result_1 %>%
-      filter(grp_cd == i)
+      dplyr::filter(grp_cd == i)
   }
 
   for (i in 1:time_num){
@@ -287,18 +291,18 @@ lifetest <- function(data_cond,group_c,censor,time_label,timelist,type,topleftla
 
   #绘制表格
 
-  ft <- flextable(table_out)
+  ft <- flextable::flextable(table_out)
   # ft <- theme_vanilla(ft)
-  ft <- color(ft,part = 'footer', color = 'black')
-  ft <- set_caption(ft,caption = title)
+  ft <- flextable::color(ft,part = 'footer', color = 'black')
+  ft <- flextable::set_caption(ft,caption = title)
   # ft<-font(ft,fontname="SimSun",part="all")
   # ft<-font(ft,fontname="Times New Roman",part="all")
-  ft<-hline_top(ft,border = fp_border_default(color="black",width=1.5),part="header")
-  ft<-hline_bottom(ft,border = fp_border_default(color="black",width=1.5),part="body")
-  ft<-hline(ft,i=1,border = fp_border_default(color="black",width=1),part="header")
-  ft <- add_footer_lines(ft,footnote)
+  ft<-flextable::hline_top(ft,border = flextable::fp_border_default(color="black",width=1.5),part="header")
+  ft<-flextable::hline_bottom(ft,border = flextable::fp_border_default(color="black",width=1.5),part="body")
+  ft<-flextable::hline(ft,i=1,border = flextable::fp_border_default(color="black",width=1),part="header")
+  ft <- flextable::add_footer_lines(ft,footnote)
   rm(table_out,envir = .GlobalEnv)
-  ft <- autofit(ft)
+  ft <- flextable::autofit(ft)
   ft
 }
 

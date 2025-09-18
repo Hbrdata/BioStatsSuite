@@ -31,15 +31,15 @@ mod_dataUpload_sidebar_ui <- function(id) {
       tags$div(
         style = "margin-bottom: 15px;",
         fileInput(ns("file"), "上传数据文件",
-                  accept = c(".xlsx", "xls", "sas7bdat"),
+                  accept = c(".xlsx", "xls", "sas7bdat", ".rda", ".RData"),
                   buttonLabel = "选择文件...",
-                  placeholder = "Excel或SAS文件")
+                  placeholder = "Excel、SAS或R数据文件")
       ),
 
       # 文件信息
       tags$div(
         style = "background-color: #f8f9fa; padding: 8px 12px; border-radius: 5px; margin-bottom: 15px; border-left: 3px solid #6c757d;",
-        tags$small(icon("info-circle"), "支持格式: .xlsx, .xls, .sas7bdat", style = "color: #6c757d;"),
+        tags$small(icon("info-circle"), "支持格式: .xlsx, .xls, .sas7bdat, .rda, .RData", style = "color: #6c757d;"),
         tags$br(),
         tags$small(icon("hard-drive"), "最大文件大小: 100MB", style = "color: #6c757d;")
       ),
@@ -60,7 +60,15 @@ mod_dataUpload_sidebar_ui <- function(id) {
       conditionalPanel(
         condition = paste0("output['", ns("has_data"), "']"),
         tags$div(style = "margin-top: 20px; padding-top: 15px; border-top: 1px dashed #dee2e6;",
-                 mod_data_filter_ui(ns("data_filter_1")))
+                 mod_data_filter_ui(ns("data_filter_1"),type="数据筛选", show_apply_button = TRUE)
+                 )
+      ),
+      # 分母筛选模块
+      conditionalPanel(
+        condition = paste0("output['", ns("has_data"), "'] && output['", ns("show_denominator_filter"), "']"),
+        tags$div(style = "margin-top: 20px; padding-top: 15px; border-top: 1px dashed #dee2e6;",
+                 mod_data_filter_ui(ns("denominator_filter_1"),type="总数", show_apply_button = FALSE)
+                 )
       )
     )
   )
@@ -93,6 +101,15 @@ mod_dataUpload_server <- function(id){
   moduleServer(id, function(input, output, session){
     ns <- session$ns
 
+    # 获取分析类型的函数
+    getAnalysisType <- reactive({
+      if (!is.null(session$userData$getAnalysisType)) {
+        session$userData$getAnalysisType()
+      } else {
+        NULL
+      }
+    })
+
     # 创建响应式值存储数据
     rv <- reactiveValues(
       raw_data = NULL,      # 原始上传数据
@@ -101,7 +118,8 @@ mod_dataUpload_server <- function(id){
       is_filtered = FALSE,  # 标记数据是否经过筛选
       filter_text = "",      # 当前筛选条件文本
       is_resetting = FALSE, # 标记是否正在重置
-      reset_trigger = 0     # 新增：重置触发器，用于通知筛选模块
+      reset_trigger = 0,    # 新增：重置触发器，用于通知筛选模块
+      show_denominator_filter = FALSE # 控制分母筛选模块显示
     )
 
     # 重置文件输入框UI的函数
@@ -110,13 +128,37 @@ mod_dataUpload_server <- function(id){
       session$sendCustomMessage(type = "resetFileInputUI", message = ns("file"))
     }
 
+    # 从Rda文件中提取数据框的函数
+    extract_data_from_rda <- function(file_path) {
+      # 创建一个新的环境来加载Rda文件
+      env <- new.env()
+      load(file_path, envir = env)
+
+      # 获取环境中所有的对象
+      objects <- ls(env)
+
+      # 查找数据框对象
+      data_frames <- objects[sapply(objects, function(x) is.data.frame(get(x, envir = env)))]
+
+      if (length(data_frames) == 0) {
+        stop("Rda文件中没有找到数据框对象")
+      }
+
+      # 如果有多个数据框，选择第一个
+      if (length(data_frames) > 1) {
+        warning(sprintf("Rda文件中包含多个数据框，选择了第一个: %s", data_frames[1]))
+      }
+
+      # 返回第一个数据框
+      return(get(data_frames[1], envir = env))
+    }
 
     # 响应上传文件
     observeEvent(input$file, {
       req(input$file)
 
       tryCatch({
-        file_ext <- tools::file_ext(input$file$name)
+        file_ext <- tolower(tools::file_ext(input$file$name))
 
         if (file_ext %in% c("xlsx", "xls")) {
           df <- readxl::read_excel(input$file$datapath)
@@ -125,8 +167,10 @@ mod_dataUpload_server <- function(id){
             stop("请先安装haven包: install.packages('haven')")
           }
           df <- haven::read_sas(input$file$datapath)
+        } else if (file_ext %in% c("rda", "rdata")) {
+          df <- extract_data_from_rda(input$file$datapath)
         } else {
-          stop("请上传Excel文件(.xlsx, .xls)或SAS文件(.sas7bdat)")
+          stop("请上传Excel文件(.xlsx, .xls)、SAS文件(.sas7bdat)或R数据文件(.rda, .RData)")
         }
 
         rv$raw_data <- df
@@ -146,7 +190,7 @@ mod_dataUpload_server <- function(id){
     })
 
     # 初始化数据筛选模块
-    filter_module <- mod_data_filter_server("data_filter_1", reactive({
+    data_filter_module <- mod_data_filter_server("data_filter_1", reactive({
       list(
         raw_data = rv$raw_data,
         updateFilteredData = function(filtered_df, filter_text) {
@@ -158,6 +202,31 @@ mod_dataUpload_server <- function(id){
       )
     }))
 
+    # 初始化分母筛选模块
+    denominator_filter_module <- mod_data_filter_server("denominator_filter_1", reactive({
+      list(
+        raw_data = rv$raw_data,
+        updateFilteredData = function(filtered_df, filter_text) {
+          rv$denominator_filter_text = filter_text
+        },
+        reset_trigger = rv$reset_trigger
+      )
+    }))
+
+    # 监听分析类型变化，控制分母筛选模块显示
+    observe({
+      # 这里需要从外部获取当前分析类型
+      # 您需要在 app_server.R 中传递分析类型信息
+      req(getAnalysisType())
+
+      rv$show_denominator_filter <- (getAnalysisType() %in% c("c_describe","q_param"))
+    })
+
+    # 输出控制分母筛选模块显示的状态
+    output$show_denominator_filter <- reactive({
+      rv$show_denominator_filter
+    })
+    outputOptions(output, "show_denominator_filter", suspendWhenHidden = FALSE)
 
     # 获取当前显示的数据（可能是原始数据或筛选后数据）
     current_data <- reactive({
@@ -169,19 +238,18 @@ mod_dataUpload_server <- function(id){
     })
 
     observe({
-      req(filter_module()$current_filter_text)
+      req(data_filter_module()$current_filter_text)
       req(rv$raw_data)
 
-      filter_text <- filter_module()$current_filter_text
+      filter_text <- data_filter_module()$current_filter_text
 
       # 只在有新筛选条件时执行
       if (filter_text != "" && filter_text != rv$filter_text && !rv$is_resetting) {
         tryCatch({
-          filter_expr <- parse(text = filter_text)
-          filtered_df <- subset(rv$raw_data, eval(parse(text = filter_expr)))
+          filtered_df <- subset(rv$raw_data, eval(parse(text = filter_text)))
           rv$current_data <- filtered_df
-          rv$is_filtered <- TRUE
-          rv$filter_text <- filter_text
+          rv$is_filtered = TRUE
+          rv$filter_text = filter_text
 
           showNotification(sprintf("筛选完成！从 %d 行筛选到 %d 行",
                                    nrow(rv$raw_data),
@@ -195,11 +263,6 @@ mod_dataUpload_server <- function(id){
 
     # 清空上传数据
     observeEvent(input$clear_data, {
-
-      # # 清空筛选条件
-      # clear_filter_conditions()
-
-
       rv$raw_data <- NULL
       rv$current_data <- NULL
       rv$data_name <- NULL
@@ -244,7 +307,6 @@ mod_dataUpload_server <- function(id){
 
     # 重置数据按钮
     observeEvent(input$reset_data, {
-
       rv$is_resetting <- TRUE
       rv$current_data <- rv$raw_data
       rv$is_filtered <- FALSE
@@ -305,7 +367,9 @@ mod_dataUpload_server <- function(id){
         current_data = rv$current_data,
         data_name = rv$data_name,
         is_filtered = rv$is_filtered,
-        filter_text = rv$filter_text
+        filter_text = rv$filter_text,
+        denominator_filter_text = rv$denominator_filter_text,
+        show_denominator_filter = rv$show_denominator_filter
       )
     }))
   })

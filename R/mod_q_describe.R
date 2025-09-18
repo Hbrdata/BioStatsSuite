@@ -5,6 +5,7 @@
 #' @noRd
 #'
 #' @importFrom shiny NS tagList
+#' @importFrom stats na.omit var
 # mod_q_describe_ui <- function(id) {
 #   ns <- NS(id)
 #   tagList(

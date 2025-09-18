@@ -4,6 +4,13 @@
 #'
 #' @return The return value, if any, from executing the utility.
 #'
+#' @importFrom dplyr filter select group_by summarise bind_rows rename
+#' @importFrom tidyr pivot_wider
+#' @importFrom rlang ensym parse_expr
+#' @importFrom gmodels CrossTable
+#' @importFrom flextable flextable set_caption font hline_top hline_bottom hline add_footer_lines autofit
+#' @importFrom officer fp_border
+#' @importFrom stats setNames ftable
 #' @noRd
 #######实验室交叉表#########
 
@@ -39,17 +46,17 @@
 c_crosstable <- function(data_cond,group_c, missing, row_colvar, format,table_title, footnote)
 {
 
-  library(readxl)
-  library(dplyr)
-  library(table1)
-  library(tibble)
-  library(kableExtra)
-  library(officer)
-  library(flextable)
-  library(rlang)
-  library(gmodels)
-  library(tidyr)
-  library(purrr)
+  # library(readxl)
+  # library(dplyr)
+  # library(table1)
+  # library(tibble)
+  # library(kableExtra)
+  # library(officer)
+  # library(flextable)
+  # library(rlang)
+  # library(gmodels)
+  # library(tidyr)
+  # library(purrr)
 
 
   ################## 拆分组别、分析变量 ################################
@@ -135,20 +142,20 @@ c_crosstable <- function(data_cond,group_c, missing, row_colvar, format,table_ti
   data_0 <- get(data_n_)
   cond_n_ <- parse_expr(cond_n_)
   data_0 <- data_0  %>%
-    filter(!!cond_n_) #根据条件筛选出数据框
+    dplyr::filter(!!cond_n_) #根据条件筛选出数据框
 
   group_cond <- c(grpnames_)
 
   data_0 <- data_0 %>%
-    filter(.data[[grpvar_]] %in% group_cond )
+    dplyr::filter(.data[[grpvar_]] %in% group_cond )
 
   row_var_expr <- rlang::ensym(rowvar_)
   col_var_expr <- rlang::ensym(colvar_)
   group_expr <- rlang::ensym(grpvar_)
 
   d_0 <- data_0 %>%
-    select({{row_var_expr}},{{col_var_expr}},{{group_expr}})
-  d_0 <- setNames(d_0,c("row_0","col_0","group_0"))
+    dplyr::select({{row_var_expr}},{{col_var_expr}},{{group_expr}})
+  d_0 <- stats::setNames(d_0,c("row_0","col_0","group_0"))
   d_0$grpcd_ <- NA
   d_0$colvarcd_ <- NA
   d_0$rowvarcd_ <- NA
@@ -190,12 +197,12 @@ c_crosstable <- function(data_cond,group_c, missing, row_colvar, format,table_ti
 
 
   #生成频数表
-  n1_ <- data.frame(ftable(d_0,row.vars = c("colvarcd_","rowvarcd_"),col.vars = "grpcd_"))
+  n1_ <- data.frame(stats::ftable(d_0,row.vars = c("colvarcd_","rowvarcd_"),col.vars = "grpcd_"))
   n1_ <- n1_ %>%
-    pivot_wider(names_from = rowvarcd_, values_from = Freq, values_fill = 0)
+    tidyr::pivot_wider(names_from = rowvarcd_, values_from = Freq, values_fill = 0)
   char_vector <- unlist(lapply(catcont_, as.character))
   n1_ <- n1_ %>%
-    select(grpcd_,colvarcd_,char_vector)
+    dplyr::select(grpcd_,colvarcd_,char_vector)
   n1_$total <- rowSums(n1_[,!names(n1_) %in% c("grpcd_","colvarcd_")])
   n1_$grpcd_ <- as.character(n1_$grpcd_)
   n1_$colvarcd_ <- as.character(n1_$colvarcd_)
@@ -211,12 +218,12 @@ c_crosstable <- function(data_cond,group_c, missing, row_colvar, format,table_ti
     p_name <- paste0("p_", 1:catnum_)
     np_name <- paste0("np_", 1:(catnum_))
     denom_cols <- c(p_name,"p_total",np_name,"np_total")
-    n2_[[i]] <- n1_ %>% filter(grpcd_ %in% i)
+    n2_[[i]] <- n1_ %>% dplyr::filter(grpcd_ %in% i)
     inter_frame <- as.data.frame(n2_[[i]])
     n2_[[i]] <- rbind(inter_frame,na_row)
     n2_col_total <- data.frame(n2_[[i]]) %>%
-      select(-c(grpcd_, colvarcd_)) %>% # 选择除了grpcd_和colvarcd_以外的所有列
-      summarise_all(list(~sum(., na.rm = TRUE)))
+      dplyr::select(-c(grpcd_, colvarcd_)) %>%
+      dplyr::summarise_all(list(~sum(., na.rm = TRUE)))
     for (s_ in 1:(catnum_+1)){
       n2_[[i]][catnum_+1,2+s_] <- n2_col_total[1,s_]
       # n2_[[i]]$row_total[s_] <- n2_col_total[1,s_]
@@ -278,17 +285,16 @@ c_crosstable <- function(data_cond,group_c, missing, row_colvar, format,table_ti
   }
 
 
-  table_out <-  bind_rows(n3_)
-  ft <- flextable(table_out)
-  ft <- color(ft,part = 'footer', color = 'black')
-  ft <- set_caption(ft,caption = table_title)
-  # ft<-font(ft,fontname="SimSun",part="all")
-  ft<-font(ft,fontname="Times New Roman",part="all")
-  ft<-hline_top(ft,border = fp_border_default(color="black",width=1.5),part="header")
-  ft<-hline_bottom(ft,border = fp_border_default(color="black",width=1.5),part="body")
-  ft<-hline(ft,i=1,border = fp_border_default(color="black",width=1),part="header")
-  ft <- add_footer_lines(ft,footnote)
+  table_out <-  dplyr::bind_rows(n3_)
+  ft <- flextable::flextable(table_out)
+  ft <- flextable::color(ft,part = 'footer', color = 'black')
+  ft <- flextable::set_caption(ft,caption = table_title)
+  ft <- flextable::font(ft,fontname="Times New Roman",part="all")
+  ft <- flextable::hline_top(ft,border = officer::fp_border(color="black",width=1.5),part="header")
+  ft <- flextable::hline_bottom(ft,border = officer::fp_border(color="black",width=1.5),part="body")
+  ft <- flextable::hline(ft,i=1,border = officer::fp_border(color="black",width=1),part="header")
+  ft <- flextable::add_footer_lines(ft,footnote)
   rm(table_out,envir = .GlobalEnv)
-  ft <- autofit(ft)
+  ft <- flextable::autofit(ft)
   ft
 }

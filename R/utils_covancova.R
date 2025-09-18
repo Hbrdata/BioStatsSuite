@@ -4,6 +4,15 @@
 #'
 #' @return The return value, if any, from executing the utility.
 #'
+#' @importFrom dplyr filter select group_by summarise bind_rows
+#' @importFrom tidyr pivot_wider
+#' @importFrom rlang ensym parse_expr
+#' @importFrom car Anova
+#' @importFrom emmeans emmeans
+#' @importFrom stats lm
+#' @importFrom graphics pairs
+#' @importFrom flextable flextable set_caption font hline_top hline_bottom hline add_footer_lines autofit
+#' @importFrom officer fp_border
 #' @noRd
 #######c_srt 秩和检验#########
 
@@ -40,23 +49,6 @@
 covancova <- function(data_cond,group_c,varlist,title1,title2,footnote1,footnote2)
 {
 
-  library(readxl)
-  library(dplyr)
-  library(table1)
-  library(tibble)
-  library(kableExtra)
-  library(officer)
-  library(flextable)
-  library(rlang)
-  library(gmodels)
-  library(tidyr)
-  library(purrr)
-  library(emmeans)
-  library(car)
-  library(afex)
-
-
-
 
 
   ###############拆分组别，组别名称；计算组别个数
@@ -89,14 +81,14 @@ covancova <- function(data_cond,group_c,varlist,title1,title2,footnote1,footnote
   cond_n_ <- data_cond_part[2]
 
   data_0 <- get(data_n_)
-  cond_n_ <- parse_expr(cond_n_)
+  cond_n_ <- rlang::parse_expr(cond_n_)
   data_0 <- data_0  %>%
-    filter(!!cond_n_) #根据条件筛选出数据框
+    dplyr::filter(!!cond_n_) #根据条件筛选出数据框
 
   group_cond <- c(grpnames_)
 
   data_0 <- data_0 %>%
-    filter(.data[[grpvar_]] %in% group_cond )
+    dplyr::filter(.data[[grpvar_]] %in% group_cond )
 
 
   #################拆分分析变量及其标签
@@ -128,9 +120,9 @@ covancova <- function(data_cond,group_c,varlist,title1,title2,footnote1,footnote
   base_expr <- rlang::ensym(base_)
   group_expr <- rlang::ensym(grpvar_)
   d_0 <- data_0 %>%
-    select({{anavar_expr}},{{siteno_expr}},{{base_expr}},{{group_expr}})
+    dplyr::select({{anavar_expr}},{{siteno_expr}},{{base_expr}},{{group_expr}})
 
-  d_0 <- setNames(d_0,c("anavar_0","siteno_0","base_0","group_0"))
+  d_0 <- stats::setNames(d_0,c("anavar_0","siteno_0","base_0","group_0"))
 
   #对组别进行排序
   d_0$grpcd_0 <- NA
@@ -152,19 +144,19 @@ covancova <- function(data_cond,group_c,varlist,title1,title2,footnote1,footnote
   d_0$group_0 <- factor(d_0$group_0,levels = c(grpnames_))
 
 
-  ancova_model <- lm(anavar_0 ~ siteno_0 + group_0+base_0, data = d_0)
+  ancova_model <- stats::lm(anavar_0 ~ siteno_0 + group_0+base_0, data = d_0)
 
   # 查看结果
   summary(ancova_model)
 
-  Anova(ancova_model, type = "III")
-  emmeans(ancova_model, ~ group_0)
-  pairs(emmeans(ancova_model, ~ group_0))  # 这将展示所有组合的均值差
+  # Anova(ancova_model, type = "III")
+  # emmeans(ancova_model, ~ group_0)
+  # pairs(emmeans(ancova_model, ~ group_0))  # 这将展示所有组合的均值差
 
   ###############制表############
   ###########因素分析表######
 
-  t_1 <- data.frame(Anova(ancova_model, type = "III"))
+  t_1 <- data.frame(car::Anova(ancova_model, type = "III"))
   t_1$var <- NA
   t_1[1,which(names(t_1) == "var")]<-"Intercept"
   t_1[2,which(names(t_1) == "var")]<-"siteno_0"
@@ -173,7 +165,7 @@ covancova <- function(data_cond,group_c,varlist,title1,title2,footnote1,footnote
   t_1[5,which(names(t_1) == "var")]<-"Residuals"
 
   t_1_1 <- t_1 %>%
-    select(var,Sum.Sq,Df,F.value,Pr..F.)
+    dplyr::select(var,Sum.Sq,Df,F.value,Pr..F.)
   t_1_1 <- setNames(t_1_1,c("var","sum_sq","df","F_value","p_value"))
   t_1_1$sum_sq <- sprintf("%.2f",t_1_1$sum_sq)
   t_1_1$df <- as.character(t_1_1$df)
@@ -206,64 +198,64 @@ covancova <- function(data_cond,group_c,varlist,title1,title2,footnote1,footnote
   }
 
   table_out_1 <- t_1_1 %>%
-    select(指标,因素,F,P值)
-  flextable(table_out_1)
+    dplyr::select(指标,因素,F,P值)
+  flextable::flextable(table_out_1)
 
 
   ############ 组间比较 ############
 
 
 
-  t_2_1 <- data.frame(emmeans(ancova_model, ~ group_0))
+  t_2_1 <- data.frame(emmeans::emmeans(ancova_model, ~ group_0))
   t_2_1$指标<-NA
   t_2_1$治疗水平及差值 <- t_2_1$group_0
   t_2_1$LSMean <- sprintf("%.2f",t_2_1$emmean)
   t_2_1$`95% CIL` <- sprintf("%.2f",t_2_1$lower.CL)
   t_2_1$`95% CIU` <- sprintf("%.2f",t_2_1$upper.CL)
   t_2_1 <- t_2_1 %>%
-    select(指标,治疗水平及差值,LSMean,`95% CIL`,`95% CIU`)
+    dplyr::select(指标,治疗水平及差值,LSMean,`95% CIL`,`95% CIU`)
 
 
   t_2_title <- data.frame(matrix(NA, nrow = 1, ncol = length(names(t_2_1))))
   names(t_2_title) <- names(t_2_1)
   t_2_title[1,1] <- avalabel_
 
-  t_2_2 <- data.frame(pairs(emmeans(ancova_model, ~ group_0)))
+  t_2_2 <- data.frame(graphics::pairs(emmeans::emmeans(ancova_model, ~ group_0)))
   t_2_2$指标 <- NA
   t_2_2$治疗水平及差值 <- t_2_2$contrast
   t_2_2$LSMean <- sprintf("%.2f",t_2_2$estimate)
   t_2_2$`95% CIL` <- sprintf("%.2f",t_2_2$estimate - 1.96 * t_2_2$SE)
   t_2_2$`95% CIU` <- sprintf("%.2f",t_2_2$estimate + 1.96 * t_2_2$SE)
   t_2_2 <- t_2_2 %>%
-    select(指标,治疗水平及差值,LSMean,`95% CIL`,`95% CIU`)
+    dplyr::select(指标,治疗水平及差值,LSMean,`95% CIL`,`95% CIU`)
 
-  table_out_2 <- bind_rows(t_2_title,t_2_1,t_2_2)
+  table_out_2 <- dplyr::bind_rows(t_2_title,t_2_1,t_2_2)
 
 
   #绘制表格
 
-  ft1 <- flextable(table_out_1)
-  ft1 <- color(ft1,part = 'footer', color = 'black')
-  ft1 <- set_caption(ft1,caption = title1)
-  ft1 <- font(ft1,fontname="SimSun",part="all")
-  ft1 <- font(ft1,fontname="Times New Roman",part="all")
-  ft1 <- hline_top(ft1,border = fp_border_default(color="black",width=1.5),part="header")
-  ft1 <- hline_bottom(ft1,border = fp_border_default(color="black",width=1.5),part="body")
-  ft1 <- hline(ft1,i=1,border = fp_border_default(color="black",width=1),part="header")
-  ft1 <- add_footer_lines(ft1,footnote1)
-  ft1 <- autofit(ft1)
+  ft1 <- flextable::flextable(table_out_1)
+  ft1 <- flextable::color(ft1,part = 'footer', color = 'black')
+  ft1 <- flextable::set_caption(ft1,caption = title1)
+  ft1 <- flextable::font(ft1,fontname="SimSun",part="all")
+  ft1 <- flextable::font(ft1,fontname="Times New Roman",part="all")
+  ft1 <- flextable::hline_top(ft1,border = officer::fp_border(color="black",width=1.5),part="header")
+  ft1 <- flextable::hline_bottom(ft1,border = officer::fp_border(color="black",width=1.5),part="body")
+  ft1 <- flextable::hline(ft1,i=1,border = officer::fp_border(color="black",width=1),part="header")
+  ft1 <- flextable::add_footer_lines(ft1,footnote1)
+  ft1 <- flextable::autofit(ft1)
   ft1 <<- ft1
 
-  ft2 <- flextable(table_out_2)
-  ft2 <- color(ft2,part = 'footer', color = 'black')
-  ft2 <- set_caption(ft2,caption = title2)
-  ft2 <- font(ft2,fontname="SimSun",part="all")
-  ft2 <- font(ft2,fontname="Times New Roman",part="all")
-  ft2 <- hline_top(ft2,border = fp_border_default(color="black",width=1.5),part="header")
-  ft2 <- hline_bottom(ft2,border = fp_border_default(color="black",width=1.5),part="body")
-  ft2 <- hline(ft2,i=1,border = fp_border_default(color="black",width=1),part="header")
-  ft2 <- add_footer_lines(ft2,footnote2)
-  ft2 <- autofit(ft2)
+  ft2 <- flextable::flextable(table_out_2)
+  ft2 <- flextable::color(ft2,part = 'footer', color = 'black')
+  ft2 <- flextable::set_caption(ft2,caption = title2)
+  ft2 <- flextable::font(ft2,fontname="SimSun",part="all")
+  ft2 <- flextable::font(ft2,fontname="Times New Roman",part="all")
+  ft2 <- flextable::hline_top(ft2,border = officer::fp_border(color="black",width=1.5),part="header")
+  ft2 <- flextable::hline_bottom(ft2,border = officer::fp_border(color="black",width=1.5),part="body")
+  ft2 <- flextable::hline(ft2,i=1,border = officer::fp_border(color="black",width=1),part="header")
+  ft2 <- flextable::add_footer_lines(ft2,footnote2)
+  ft2 <- flextable::autofit(ft2)
   ft2
 
   ft2<<-ft2

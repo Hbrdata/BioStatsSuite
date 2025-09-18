@@ -1,11 +1,17 @@
 #' c_describe
 #'
-#' @description A utils function
+#' @description A utils function for categorical variable descriptive statistics
 #'
-#' @return The return value, if any, from executing the utility.
+#' @return A flextable object with descriptive statistics
 #'
+#' @importFrom dplyr filter select group_by summarise bind_rows n rename mutate if_else
+#' @importFrom rlang parse_expr .data ensym
+#' @importFrom flextable flextable set_caption font hline_top hline_bottom hline add_footer_lines autofit
+#' @importFrom tidyr pivot_wider
+#' @importFrom purrr map
+#' @importFrom gmodels CrossTable
+#' @importFrom officer fp_border
 #' @noRd
-#'
 #######分类变量描述性统计函数#########
 
 # 用途：用于对数据框中数据进行分组统计学描述
@@ -41,17 +47,6 @@
 
 c_describe <- function(data_cond,denominator_cond,varlist,group_c,coltotal,rowtotal,outyn=1,table_title,ftnote)
 {
-  library(readxl)
-  library(dplyr)
-  library(table1)
-  library(tibble)
-  library(kableExtra)
-  library(officer)
-  library(flextable)
-  library(rlang)
-  library(gmodels)
-  library(tidyr)
-  library(purrr)
   grp_part <-  unlist(strsplit(group_c, "|", fixed = TRUE))
 
   grpvar_ <-  grp_part[1]
@@ -117,21 +112,21 @@ c_describe <- function(data_cond,denominator_cond,varlist,group_c,coltotal,rowto
   cond_n_ <- data_cond_part[2]
 
   data_0 <- get(data_n_)
-  cond_n_ <- parse_expr(cond_n_)
+  cond_n_ <- rlang::parse_expr(cond_n_)
   data_0 <- data_0  %>%
-    filter(!!cond_n_) #根据条件筛选出数据框
+    dplyr::filter(!!cond_n_) #根据条件筛选出数据框
 
   group_cond <- c(grpnames_)
 
   data_0 <- data_0 %>%
-    filter(.data[[grpvar_]] %in% group_cond )
+    dplyr::filter(.data[[grpvar_]] %in% group_cond )
 
   var_expr <- rlang::ensym(anavar_)
   group_expr <- rlang::ensym(grpvar_)
 
   d_0 <- data_0 %>%
-    select({{var_expr}},{{group_expr}})
-  d_0 <- setNames(d_0,c("var_0","group_0"))
+    dplyr::select({{var_expr}},{{group_expr}})
+  d_0 <- stats::setNames(d_0,c("var_0","group_0"))
   d_0$grpcd_ <- NA
   d_0$catorder_ <- NA
 
@@ -166,25 +161,25 @@ c_describe <- function(data_cond,denominator_cond,varlist,group_c,coltotal,rowto
     d_0_newrow$grpcd_[s_] <- s_
   }
 
-  d_0 <- bind_rows(d_0, d_0_newrow)
+  d_0 <- dplyr::bind_rows(d_0, d_0_newrow)
   ######计算分子
   #计算频数
-  n1_ <- data.frame(CrossTable(d_0$catorder_,d_0$grpcd_))
-  n1_ <- n1_ %>% select(t.x,t.y,t.Freq)
+  n1_ <- data.frame(gmodels::CrossTable(d_0$catorder_,d_0$grpcd_))
+  n1_ <- n1_ %>% dplyr::select(t.x,t.y,t.Freq)
   #跨栏操作重塑数据框
   n1_ <- n1_ %>%
-    pivot_wider(names_from = t.y, values_from = t.Freq, values_fill = 0)
+    tidyr::pivot_wider(names_from = t.y, values_from = t.Freq, values_fill = 0)
   #添加总计行
-  total_c_0 <- colSums(n1_[, -c(1)], na.rm = TRUE)  # 计算除了第一列和第二列之外的总和
+  total_c_0 <- colSums(n1_[, -c(1)], na.rm = TRUE)
   total_c_0 <- data.frame(total_c_0)
   total_c <- as.data.frame(t(total_c_0))
-  n1_ <- bind_rows(n1_,total_c)
+  n1_ <- dplyr::bind_rows(n1_, total_c)
 
   #添加总计列
   n1_$n999_ <- rowSums(n1_[, -c(1)])
 
   n1_ <- n1_ %>%
-    rename(
+    dplyr::rename(
       catorder_ =  t.x
     )
   # 由于前面每个组别插入了一行444，所以在这个地方要将合计都删除1个，找到合计的数值
@@ -199,7 +194,7 @@ c_describe <- function(data_cond,denominator_cond,varlist,group_c,coltotal,rowto
   }
 
   n1_ <- n1_ %>%
-    mutate(
+    dplyr::mutate(
       n999_ = if_else(!is.na(BREAK_) , n999_-grp_num, n999_),
     )
   #拆分分母数据集及条件（分母denominator），并且给组别排序
@@ -209,21 +204,21 @@ c_describe <- function(data_cond,denominator_cond,varlist,group_c,coltotal,rowto
   cond_d_ <- denominator_cond_part[2]
 
   data_1 <- get(data_d_)
-  cond_d_ <- parse_expr(cond_d_)
+  cond_d_ <- rlang::parse_expr(cond_d_)
   data_1 <- data_1  %>%
-    filter(!!cond_d_) #根据条件筛选出数据框
+    dplyr::filter(!!cond_d_) #根据条件筛选出数据框
 
   group_cond <- c(grpnames_)
 
   data_1 <- data_1 %>%
-    filter(.data[[grpvar_]] %in% group_cond )
+    dplyr::filter(.data[[grpvar_]] %in% group_cond )
 
   var_expr <- rlang::ensym(anavar_)
   group_expr <- rlang::ensym(grpvar_)
 
   d_1 <- data_1 %>%
-    select({{var_expr}},{{group_expr}})
-  d_1 <- setNames(d_1,c("var_0","group_0"))
+    dplyr::select({{var_expr}}, {{group_expr}})
+  d_1 <- stats::setNames(d_1, c("var_0", "group_0"))
   d_1$grpcd_ <- NA
 
   #拆分数据集及条件（分子numerator），并且给组别排序
@@ -239,9 +234,9 @@ c_describe <- function(data_cond,denominator_cond,varlist,group_c,coltotal,rowto
   }
 
   n2_ <- d_1 %>%
-    group_by(grpcd_) %>%
-    summarise(
-      n = n(),  # 计数每个组的观测值数量
+    dplyr::group_by(grpcd_) %>%
+    dplyr::summarise(
+      n = dplyr::n(),  # 计数每个组的观测值数量
     )
 
   n2_ <- as.data.frame(t(n2_))
@@ -260,8 +255,8 @@ c_describe <- function(data_cond,denominator_cond,varlist,group_c,coltotal,rowto
   ##################将连续命名的变量提取###########
   need_col <- paste0('', 1:grp_num )
 
-  n3_ <- left_join(cat_, n1_, by = "catorder_") %>%
-    select(catorder_,catlabel_,BREAK_,all_of(need_col))
+  n3_ <- dplyr::left_join(cat_, n1_, by = "catorder_") %>%
+    dplyr::select(catorder_,catlabel_,BREAK_,dplyr::all_of(need_col))
 
   for (i in 1:grp_num) {
     for (s_ in 1:catnum_) {
@@ -329,33 +324,33 @@ c_describe <- function(data_cond,denominator_cond,varlist,group_c,coltotal,rowto
   ###########最终数据列提取
 
   t_0 <- n4_%>%
-    select(catlabel_,all_of(np_name),np999_)
+    dplyr::select(catlabel_,all_of(np_name),np999_)
   #创建与t_0变量名称与变量数量相同且只有一行空行的数据框
   t_1 <- data.frame(matrix(NA, nrow = 1, ncol = ncol(t_0), dimnames = list(NULL, names(t_0))))
 
   #为数据添加分析变量label
-  t_2 <- bind_rows(t_1,t_0)
+  t_2 <- dplyr::bind_rows(t_1,t_0)
   t_2[1,1] <- avalabel_
   t_2<<-t_2
 
   ####制作表头
 
   title_0 <- d_1 %>%
-    group_by(grpcd_) %>%
-    summarise(
-      n = n(),  # 计数每个组的观测值数量
+    dplyr::group_by(grpcd_) %>%
+    dplyr::summarise(
+      n = dplyr::n(),  # 计数每个组的观测值数量
     )
 
   title_0_1 <- d_1 %>%
-    summarise(
+    dplyr::summarise(
       grpcd_ = 999,
-      n = n(),  # 计数每个组的观测值数量
+      n = dplyr::n(),  # 计数每个组的观测值数量
     )
 
-  title_0 <- bind_rows(title_0,title_0_1)
+  title_0 <- dplyr::bind_rows(title_0,title_0_1)
   title_0$grp_name <- c(grpnames_,'合计')
   title_0$grp_n <- paste(title_0$grp_name,'\n(n = ',title_0$n, ')')
-  title_0 <- title_0 %>% select( grp_n )
+  title_0 <- title_0 %>% dplyr::select( grp_n )
   title_0 <- data.frame(t(title_0))
 
   NA_column <- rep(NA, nrow(title_0))  # 使用rep()函数创建一个长度为nrow(df)的NA向量
@@ -364,7 +359,7 @@ c_describe <- function(data_cond,denominator_cond,varlist,group_c,coltotal,rowto
   title_0 <- cbind(NA_column, title_0)
 
   #数据框重命名
-  names(title_0) <- c('catlabel_',all_of(np_name),'np999_')
+  names(title_0) <- c('catlabel_',dplyr::all_of(np_name),'np999_')
 
   if (coltotal==0){
     t_2 <- subset(t_2, catlabel_ != '合计')
@@ -379,34 +374,39 @@ c_describe <- function(data_cond,denominator_cond,varlist,group_c,coltotal,rowto
     table_out<-title_0
   }
 
-  table_out <- bind_rows(table_out,t_2)
+  table_out <- dplyr::bind_rows(table_out,t_2)
   table_out <<-table_out
 
   col_names <- table_out[1, ]
   col_names[1,1] <- '  '
-  table_out <- slice(table_out, -1)# 移除第一行
+  table_out <- dplyr::slice(table_out, -1)# 移除第一行
   names(table_out) <- col_names # 将第一行的值设置为列名
 
 
-  ft<-if(outyn==1){
-    #绘制表格
+  if (outyn == 1) {
+    # 绘制表格
+    ft <- flextable::flextable(table_out)
+    ft <- flextable::color(ft, part = 'footer', color = 'black')
+    ft <- flextable::set_caption(ft, caption = table_title)
+    ft <- flextable::font(ft, fontname = "SimSun", part = "all")
+    ft <- flextable::font(ft, fontname = "Times New Roman", part = "all")
 
-    ft <- flextable(table_out)
-    ft <- color(ft,part = 'footer', color = 'black')
-    ft <- set_caption(ft,caption = table_title)
-    ft<-font(ft,fontname="SimSun",part="all")
-    ft<-font(ft,fontname="Times New Roman",part="all")
-    ft<-hline_top(ft,border = fp_border_default(color="black",width=1.5),part="header")
-    ft<-hline_bottom(ft,border = fp_border_default(color="black",width=1.5),part="body")
-    ft<-hline(ft,i=1,border = fp_border_default(color="black",width=1),part="header")
-    ft <- add_footer_lines(ft,ftnote)
-    rm(table_out,t_2,envir = .GlobalEnv)
-    ft <- autofit(ft)
-    # ft <- set_table_properties(layout = "autofit", width = 1)
-    ft
+    border_style <- officer::fp_border(color = "black", width = 1.5)
+    border_style_thin <- officer::fp_border(color = "black", width = 1)
 
+    ft <- flextable::hline_top(ft, border = border_style, part = "header")
+    ft <- flextable::hline_bottom(ft, border = border_style, part = "body")
+    ft <- flextable::hline(ft, i = 1, border = border_style_thin, part = "header")
+    ft <- flextable::add_footer_lines(ft, ftnote)
+    ft <- flextable::autofit(ft)
+
+    if (exists('table_out', envir = .GlobalEnv)) rm(table_out, envir = .GlobalEnv)
+    if (exists('t_2', envir = .GlobalEnv)) rm(t_2, envir = .GlobalEnv)
+
+    return(ft)
+  } else {
+    return(NULL)
   }
-  ft
 }
 
 

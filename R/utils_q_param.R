@@ -1,9 +1,14 @@
 #' q_param
 #'
-#' @description A utils function
+#' @description A utils function for quantitative parameter analysis
 #'
-#' @return The return value, if any, from executing the utility.
+#' @return A flextable object with descriptive statistics
 #'
+#' @importFrom dplyr filter select group_by summarise bind_rows n rename
+#' @importFrom rlang parse_expr .data ensym
+#' @importFrom flextable flextable set_caption font hline_top hline_bottom hline add_footer_lines
+#' @importFrom stats median quantile sd setNames t.test aov
+#' @importFrom officer fp_border
 #' @noRd
 #######连续型变量描述性统计函数#########
 
@@ -44,22 +49,6 @@ q_param<-function(data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,
 
 
 
-  library(readxl)
-  library(dplyr)
-  library(table1)
-  library(tibble)
-  library(kableExtra)
-  library(officer)
-  library(flextable)
-  library(rlang)
-
-
-
-
-
-
-
-
 
   grp_part <-  unlist(strsplit(group_c, "|", fixed = TRUE))
 
@@ -92,19 +81,19 @@ q_param<-function(data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,
   data_0 <- get(data_n_)
   cond_n_ <- parse_expr(cond_n_)
   data_0 <- data_0  %>%
-    filter(!!cond_n_) #根据条件筛选出数据框
+    dplyr::filter(!!cond_n_) #根据条件筛选出数据框
 
   group_cond <- c(grpnames_)
 
   data_0 <- data_0 %>%
-    filter(.data[[grpvar_]] %in% group_cond )
+    dplyr::filter(.data[[grpvar_]] %in% group_cond )
 
   var_expr <- rlang::ensym(anavar_)
   group_expr <- rlang::ensym(grpvar_)
 
   d_0 <- data_0 %>%
-    select({{var_expr}},{{group_expr}})
-  d_0 <- setNames(d_0,c("var_0","group_0"))
+    dplyr::select({{var_expr}},{{group_expr}})
+  d_0 <- stats::setNames(d_0,c("var_0","group_0"))
   d_0$grpcd_ <- NA
 
   for (i in 1:nrow(d_0)){
@@ -125,18 +114,18 @@ q_param<-function(data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,
   cond_n_title <- data_cond_part_title[2]
 
   data_1 <- get(data_n_title)
-  cond_n_title <- parse_expr(cond_n_title)
+  cond_n_title <- rlang::parse_expr(cond_n_title)
   data_1 <- data_1  %>%
-    filter(!!cond_n_title) #根据条件筛选出数据框
+    dplyr::filter(!!cond_n_title) #根据条件筛选出数据框
 
   data_1 <- data_1 %>%
-    filter(.data[[grpvar_]] %in% group_cond )
+    dplyr::filter(.data[[grpvar_]] %in% group_cond )
 
 
   d_1 <- data_1 %>%
-    select({{var_expr}},{{group_expr}})
+    dplyr::select({{var_expr}},{{group_expr}})
 
-  d_1 <- setNames(d_1,c("var_0","group_0"))
+  d_1 <- stats::setNames(d_1,c("var_0","group_0"))
   d_1$grpcd_ <- NA
 
   for (i in 1:nrow(d_0)){
@@ -153,28 +142,28 @@ q_param<-function(data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,
 
 
   title_0 <- d_1 %>%
-    group_by(group_0) %>%
+    dplyr::group_by(group_0) %>%
     # filter(group_0 %in% group_cond) %>%  # 使用filter挑选分组
-    summarise(
-      n = n() # 计数每个组的观测值数量
+    dplyr::summarise(
+      n = dplyr::n() # 计数每个组的观测值数量
     )
 
   title_0_1 <- d_1 %>%
-    summarise(
+    dplyr::summarise(
       group_0 = '合计',
-      n = n(),  # 计数每个组的观测值数量
+      n = dplyr::n(),  # 计数每个组的观测值数量
     )
 
-  title_0 <- bind_rows(title_0,title_0_1)
+  title_0 <- dplyr::bind_rows(title_0,title_0_1)
 
 
   title_0$grp_n = paste(title_0$group_0, '\n(n = ', title_0$n, ')')
 
-  title_0 <- title_0 %>% select(grp_n)
+  title_0 <- title_0 %>% dplyr::select(grp_n)
 
   title_0_stat <- data.frame(grp_n=c("统计量","P值"))
 
-  title_0<- bind_rows(title_0,title_0_stat)
+  title_0<- dplyr::bind_rows(title_0,title_0_stat)
 
   title_0_0 <- rep(list(NA), ncol(title_0))
   names(title_0_0) <- names(title_0)  # 确保新行的列名与df相同
@@ -198,8 +187,8 @@ q_param<-function(data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,
   #进行描述性统计
 
   s_0 <- d_0 %>%
-    group_by(group_0) %>%
-    summarise(
+    dplyr::group_by(group_0) %>%
+    dplyr::summarise(
       mean = sprintf('%.2f',mean(var_0, na.rm = TRUE)),  #na.rm=TRUE 表示对于数据中的NA值，确保函数在计算时值考虑非缺失值，得到一个
       #基于有效数据的统计结果
       median = sprintf('%.2f',median(var_0, na.rm = TRUE)),
@@ -220,7 +209,7 @@ q_param<-function(data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,
   #总计列
 
   s_1 <- d_0 %>%
-    summarise(
+    dplyr::summarise(
       group_0 = '合计',
       mean = sprintf('%.2f',mean(var_0, na.rm = TRUE)),  #na.rm=TRUE 表示对于数据中的NA值，确保函数在计算时值考虑非缺失值，得到一个
       #基于有效数据的统计结果
@@ -239,11 +228,11 @@ q_param<-function(data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,
       Min_Max = paste(min,',',max)
     )
 
-  s_2 <- bind_rows(s_0,s_1)
+  s_2 <- dplyr::bind_rows(s_0,s_1)
 
   s_2$grp_n = paste(s_2$group_0, '\n(n = ', s_2$n, ')')
 
-  s_2 <- s_2 %>% select(grp_n,N_Missing,Mean_SD,Median_Q1_Q3,Min_Max)
+  s_2 <- s_2 %>% dplyr::select(grp_n,N_Missing,Mean_SD,Median_Q1_Q3,Min_Max)
 
 
   s_3 <- data.frame(matrix(NA,nrow = nrow(s_2) + 1, ncol = ncol(s_2)), stringsAsFactors = FALSE)
@@ -274,7 +263,7 @@ q_param<-function(data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,
 
   col_names <- t_1[1, ]
   col_names[1,1] <- '  '
-  t_2 <- slice(t_1, -1)# 移除第一行
+  t_2 <- dplyr::slice(t_1, -1)# 移除第一行
   names(t_2) <- col_names # 将第一行的值设置为列名
   # t_2[is.na(t_2)] <- ""   #将数据框中NA显示为空值
   t_2[2,1] <- 'N(Missing)'
@@ -290,13 +279,13 @@ q_param<-function(data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,
   #组间检验
   d_0$group_0 <- factor(d_0$group_0,levels = c(grpnames_))
   if (grp_num>2){
-    test_stat <- paste(sprintf("%.2f",summary(aov(var_0~group_0,data=d_0))[[1]][4][[1]][1]),"(方差检验)")
-    test_p <- sprintf("%.4f",summary(aov(var_0~group_0,data=d_0))[[1]][5][[1]][1])
+    test_stat <- paste(sprintf("%.2f",summary(stats::aov(var_0~group_0,data=d_0))[[1]][4][[1]][1]),"(方差检验)")
+    test_p <- sprintf("%.4f",summary(stats::aov(var_0~group_0,data=d_0))[[1]][5][[1]][1])
   }
 
   if (grp_num==2){
-    test_stat <- paste(sprintf("%.2f",t.test(var_0~group_0, var.equal = TRUE,data=d_0)$statistic[[1]] ),"(独立样本t检验)" )
-    test_p <- sprintf("%.4f",t.test(var_0~group_0, var.equal = TRUE,data=d_0)$p.value)
+    test_stat <- paste(sprintf("%.2f",stats::t.test(var_0~group_0, var.equal = TRUE,data=d_0)$statistic[[1]] ),"(独立样本t检验)" )
+    test_p <- sprintf("%.4f",stats::t.test(var_0~group_0, var.equal = TRUE,data=d_0)$p.value)
   }
 
   if (grp_num<2){
@@ -319,9 +308,9 @@ q_param<-function(data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,
   tpairtlistp  <- list()
   tpairtlistvp <- list()
   for (i in 1:grp_num) {
-    tpairtlist[[i]] <- d_0  %>% filter(grpcd_ == i)
-    tpairttestlistv[[i]] <- t.test(tpairtlist[[i]]$var_0,alternative = "two.sided")$statistic[[1]]
-    tpairtlistp[[i]] <- sprintf("%.4f", t.test(tpairtlist[[i]]$var_0,alternative = "two.sided")$p.value)
+    tpairtlist[[i]] <- d_0  %>% dplyr::filter(grpcd_ == i)
+    tpairttestlistv[[i]] <- stats::t.test(tpairtlist[[i]]$var_0,alternative = "two.sided")$statistic[[1]]
+    tpairtlistp[[i]] <- sprintf("%.4f", stats::t.test(tpairtlist[[i]]$var_0,alternative = "two.sided")$p.value)
 
     if (as.numeric(tpairtlistp[[i]] )< 0.0001){
       tpairtlistvp[[i]] <- paste(sprintf("%.2f",tpairttestlistv[[i]]),"(","<.0001",")")
@@ -334,13 +323,13 @@ q_param<-function(data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,
 
 
   if (rowtotal==0){
-    t_2 <- t_2 %>% select(-matches("合计"))
+    t_2 <- t_2 %>% dplyr::select(-dplyr::matches("合计"))
   }
 
 
   if (test_between==0){
-    t_2 <- t_2 %>% select(-matches("统计量"))
-    t_2 <- t_2 %>% select(-matches("P值"))
+    t_2 <- t_2 %>% dplyr::select(-dplyr::matches("统计量"))
+    t_2 <- t_2 %>% dplyr::select(-dplyr::matches("P值"))
   }
 
   if (pairt==0){
@@ -358,19 +347,19 @@ q_param<-function(data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,
   }
 
   if (rowtotal==0){
-    table_out <- table_out %>% select(-matches("合计"))
+    table_out <- table_out %>% dplyr::select(-dplyr::matches("合计"))
   }
 
 
   if (test_between==0){
-    table_out <- table_out %>% select(-matches("统计量"))
-    table_out <- table_out %>% select(-matches("P值"))
+    table_out <- table_out %>% dplyr::select(-dplyr::matches("统计量"))
+    table_out <- table_out %>% dplyr::select(-dplyr::matches("P值"))
   }
 
 
 
 
-  table_out <- bind_rows(table_out,t_2)
+  table_out <- dplyr::bind_rows(table_out,t_2)
 
 
 
@@ -378,27 +367,30 @@ q_param<-function(data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,
 
 
 
-
-  ft<-if(outyn==1){
-    #绘制表格
-    ft <- flextable(table_out)
+  if (outyn == 1) {
+    # 绘制表格
+    ft <- flextable::flextable(table_out)
     # ft <- theme_vanilla(ft)
-
-
-    ft <- color(ft,part = 'footer', color = 'black')
-    ft <- set_caption(ft,caption = title)
+    ft <- flextable::color(ft, part = 'footer', color = 'black')
+    ft <- flextable::set_caption(ft, caption = title)
     # ft<-font(ft,fontname="SimSun",part="all")
-    ft<-font(ft,fontname="Times New Roman",part="all")
-    ft<-hline_top(ft,border = fp_border_default(color="black",width=1.5),part="header")
-    ft<-hline_bottom(ft,border = fp_border_default(color="black",width=1.5),part="body")
-    ft<-hline(ft,i=1,border = fp_border_default(color="black",width=1),part="header")
-    ft <- add_footer_lines(ft,footnote)
-    rm(table_out,t_2,envir = .GlobalEnv)
-    # ft <- set_table_properties(layout = "autofit", width = 1)
-    ft
+    ft <- flextable::font(ft, fontname = "Times New Roman", part = "all")
 
+    border_style <- officer::fp_border(color = "black", width = 1.5)
+    border_style_thin <- officer::fp_border(color = "black", width = 1)
+
+    ft <- flextable::hline_top(ft, border = border_style, part = "header")
+    ft <- flextable::hline_bottom(ft, border = border_style, part = "body")
+    ft <- flextable::hline(ft, i = 1, border = border_style_thin, part = "header")
+    ft <- flextable::add_footer_lines(ft, footnote)
+
+    if (exists('table_out', envir = .GlobalEnv)) rm(table_out, envir = .GlobalEnv)
+    if (exists('t_2', envir = .GlobalEnv)) rm(t_2, envir = .GlobalEnv)
+    # ft <- set_table_properties(layout = "autofit", width = 1)
+    return(ft)
+  } else {
+    return(NULL)
   }
-  ft
 
 
 }

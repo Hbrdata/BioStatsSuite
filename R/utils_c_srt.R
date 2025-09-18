@@ -4,6 +4,14 @@
 #'
 #' @return The return value, if any, from executing the utility.
 #'
+#' @importFrom dplyr filter select group_by summarise bind_rows rename left_join
+#' @importFrom tidyr pivot_wider
+#' @importFrom purrr set_names
+#' @importFrom rlang ensym parse_expr
+#' @importFrom gmodels CrossTable
+#' @importFrom stats wilcox.test kruskal.test
+#' @importFrom flextable flextable set_caption font hline_top hline_bottom hline add_footer_lines autofit
+#' @importFrom officer fp_border
 #' @noRd
 #######c_srt 秩和检验#########
 
@@ -43,17 +51,17 @@
 
 c_srt <- function(data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_between,test_in,table_title,ftnote)
 {
-  library(readxl)
-  library(dplyr)
-  library(table1)
-  library(tibble)
-  library(kableExtra)
-  library(officer)
-  library(flextable)
-  library(rlang)
-  library(gmodels)
-  library(tidyr)
-  library(purrr)
+  # library(readxl)
+  # library(dplyr)
+  # library(table1)
+  # library(tibble)
+  # library(kableExtra)
+  # library(officer)
+  # library(flextable)
+  # library(rlang)
+  # library(gmodels)
+  # library(tidyr)
+  # library(purrr)
 
 
   ##################################################
@@ -127,9 +135,9 @@ c_srt <- function(data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_betwe
     cond_n_ <- data_cond_part[2]
 
     data_0 <- get(data_n_)
-    cond_n_ <- parse_expr(cond_n_)
+    cond_n_ <- rlang::parse_expr(cond_n_)
     data_0 <- data_0  %>%
-      filter(!!cond_n_) #根据条件筛选出数据框
+      dplyr::filter(!!cond_n_) #根据条件筛选出数据框
 
     group_cond <- c(grpnames_)
 
@@ -143,7 +151,7 @@ c_srt <- function(data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_betwe
 
     d_0 <- data_0 %>%
       dplyr::select(!!var_expr, !!group_expr)
-      d_0 <- setNames(d_0,c("var_0","group_0"))
+      d_0 <- stats::setNames(d_0,c("var_0","group_0"))
       d_0$grpcd_ <- NA
       d_0$catorder_ <- NA
 
@@ -170,23 +178,23 @@ c_srt <- function(data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_betwe
 
     ######计算分子
     #计算频数
-    n1_ <- data.frame(CrossTable(d_0$catorder_,d_0$grpcd_))
+    n1_ <- data.frame(gmodels::CrossTable(d_0$catorder_,d_0$grpcd_))
 
-    n1_ <- n1_ %>% select(t.x,t.y,t.Freq)
+    n1_ <- n1_ %>% dplyr::select(t.x,t.y,t.Freq)
     #跨栏操作重塑数据框
     n1_ <- n1_ %>%
-      pivot_wider(names_from = t.y, values_from = t.Freq, values_fill = 0)
+      tidyr::pivot_wider(names_from = t.y, values_from = t.Freq, values_fill = 0)
 
     #添加总计行
     total_c_0 <- colSums(n1_[, -c(1)], na.rm = TRUE)  # 计算除了第一列和第二列之外的总和
     total_c_0 <- data.frame(total_c_0)
     total_c <- as.data.frame(t(total_c_0))
-    n1_ <- bind_rows(n1_,total_c)
+    n1_ <- dplyr::bind_rows(n1_,total_c)
 
     #添加总计列
     n1_$n999_ <- rowSums(n1_[, -c(1)])
     n1_ <- n1_ %>%
-      rename(
+      dplyr::rename(
         catorder_ =  t.x
       )
 
@@ -196,8 +204,8 @@ c_srt <- function(data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_betwe
     n1_$catorder_[is.na(n1_$catorder_)] <- 999
 
     n2_ <- d_0 %>%
-      group_by(grpcd_) %>%
-      summarise(
+      dplyr::group_by(grpcd_) %>%
+      dplyr::summarise(
         n = n(),  # 计数每个组的观测值数量
       )
 
@@ -218,8 +226,8 @@ c_srt <- function(data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_betwe
     need_col <- paste0('', 1:grp_num )
 
 
-    n3_ <- left_join(cat_, n1_, by = "catorder_") %>%
-      select(catorder_,catlabel_,BREAK_,all_of(need_col))
+    n3_ <- dplyr::left_join(cat_, n1_, by = "catorder_") %>%
+      dplyr::select(catorder_,catlabel_,BREAK_,all_of(need_col))
 
 
     for (i in 1:grp_num) {
@@ -294,20 +302,20 @@ c_srt <- function(data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_betwe
     ###########最终数据列提取
 
     t_0 <- n4_%>%
-      select(catlabel_,all_of(np_name),np999_)
+      dplyr::select(catlabel_,all_of(np_name),np999_)
     #创建与t_0变量名称与变量数量相同且只有一行空行的数据框
     t_1 <- data.frame(matrix(NA, nrow = 1, ncol = ncol(t_0), dimnames = list(NULL, names(t_0))))
 
     #为数据添加分析变量label
-    t_2 <- bind_rows(t_1,t_0)
+    t_2 <- dplyr::bind_rows(t_1,t_0)
     t_2[1,1] <- avalabel_
     t_2_names <- names(t_2)
-    t_2_1_list <- setNames(rep(list(NA), length(t_2_names)), t_2_names)
+    t_2_1_list <- stats::setNames(rep(list(NA), length(t_2_names)), t_2_names)
 
     # 将列表转换为数据框
     t_2_1 <- data.frame(t_2_1_list, check.names = FALSE)
 
-    t_2 <- bind_rows(t_2,t_2_1)
+    t_2 <- dplyr::bind_rows(t_2,t_2_1)
 
     t_2[catnum_+3,1]<-"符号秩(P值)"
 
@@ -316,9 +324,9 @@ c_srt <- function(data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_betwe
     wilcoxtestlistp  <- list()
     wilcoxtestlistvp <- list()
     for (i in 1:grp_num) {
-      wilcoxdatalist[[i]] <- d_0  %>% filter(grpcd_ == i)
-      wilcoxtestlistv[[i]] <- wilcox.test(wilcoxdatalist[[i]]$var_0,alternative = "two.sided")$statistic[[1]]
-      wilcoxtestlistp[[i]] <- sprintf("%.4f", wilcox.test(wilcoxdatalist[[i]]$var_0,alternative = "two.sided")$p.value)
+      wilcoxdatalist[[i]] <- d_0  %>% dplyr::filter(grpcd_ == i)
+      wilcoxtestlistv[[i]] <- stats::wilcox.test(wilcoxdatalist[[i]]$var_0,alternative = "two.sided")$statistic[[1]]
+      wilcoxtestlistp[[i]] <- sprintf("%.4f", stats::wilcox.test(wilcoxdatalist[[i]]$var_0,alternative = "two.sided")$p.value)
 
       if (as.numeric(wilcoxtestlistp[[i]] )< 0.0001){
         wilcoxtestlistvp[[i]] <- paste(wilcoxtestlistv[[i]],"(","<.0001",")")
@@ -332,9 +340,9 @@ c_srt <- function(data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_betwe
     t_2$pvalue <- NA
 
     if (grp_num<3){
-      grpwilcoxstat <-sprintf("%.2f",wilcox.test(d_0$var_0~d_0$grpcd_,alternative = "two.sided")$statistic[[1]])
+      grpwilcoxstat <-sprintf("%.2f",stats::wilcox.test(d_0$var_0~d_0$grpcd_,alternative = "two.sided")$statistic[[1]])
       grpwilcoxout <-  paste(grpwilcoxstat,"(","Wilcoxon秩和检验",")")
-      grpwilcoxp <- sprintf("%.4f",wilcox.test(d_0$var_0~d_0$grpcd_,alternative = "two.sided")$p.value)
+      grpwilcoxp <- sprintf("%.4f",stats::wilcox.test(d_0$var_0~d_0$grpcd_,alternative = "two.sided")$p.value)
       if (as.numeric(grpwilcoxp)<0.0001){
         grpwilcoxp <- "<.0001"
       }
@@ -342,9 +350,9 @@ c_srt <- function(data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_betwe
       t_2[1,which(names(t_2) == "pvalue")] <- grpwilcoxp
 
     }else{
-      grpkwstat <- sprintf("%.2f", kruskal.test(d_0$var_0~d_0$grpcd_)$statistic[[1]])
+      grpkwstat <- sprintf("%.2f", stats::kruskal.test(d_0$var_0~d_0$grpcd_)$statistic[[1]])
       grpkwstatout <- paste(grpkwstat,"(","Kruskal-Wallis H检验",")")
-      grpkwp <- sprintf("%.4f", kruskal.test(d_0$var_0~d_0$grpcd_)$p.value)
+      grpkwp <- sprintf("%.4f", stats::kruskal.test(d_0$var_0~d_0$grpcd_)$p.value)
       if (as.numeric(grpkwp)<0.0001){
         grpkwp <- "<.0001"
       }
@@ -359,24 +367,24 @@ c_srt <- function(data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_betwe
     ####制作表头
 
     title_0 <- d_0 %>%
-      group_by(grpcd_) %>%
-      summarise(
+      dplyr::group_by(grpcd_) %>%
+      dplyr::summarise(
         n = n(),  # 计数每个组的观测值数量
       )
 
 
     title_0_1 <- d_0 %>%
-      summarise(
+      dplyr::summarise(
         grpcd_ = 999,
         n = n(),  # 计数每个组的观测值数量
       )
 
 
 
-    title_0 <- bind_rows(title_0,title_0_1)
+    title_0 <- dplyr::bind_rows(title_0,title_0_1)
     title_0$grp_name <- c(grpnames_,'合计')
     title_0$grp_n <- paste(title_0$grp_name,'\n(n = ',title_0$n, ')')
-    title_0 <- title_0 %>% select( grp_n )
+    title_0 <- title_0 %>% dplyr::select( grp_n )
     title_0 <- data.frame(t(title_0))
 
     NA_column <- rep(NA, nrow(title_0))  # 使用rep()函数创建一个长度为nrow(df)的NA向量
@@ -398,14 +406,14 @@ c_srt <- function(data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_betwe
 
 
 
-    table_out <- bind_rows(table_out,t_2)
+    table_out <- dplyr::bind_rows(table_out,t_2)
 
     table_out <<-table_out
 
 
     col_names <- table_out[1, ]
     col_names[1,1] <- '  '
-    table_out <- slice(table_out, -1)# 移除第一行
+    table_out <- dplyr::slice(table_out, -1)# 移除第一行
     names(table_out) <- col_names # 将第一行的值设置为列名
 
 
@@ -415,7 +423,7 @@ c_srt <- function(data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_betwe
 
 
     if (rowtotal==0){
-      table_out <- table_out %>% select(-matches("合计"))
+      table_out <- table_out %>% dplyr::select(-dplyr::matches("合计"))
     }
 
     if (test_in==0){
@@ -423,8 +431,8 @@ c_srt <- function(data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_betwe
     }
 
     if (test_between==0){
-      table_out <- table_out %>% select(-matches("统计量"))
-      table_out <- table_out %>% select(-matches("P值"))
+      table_out <- table_out %>% dplyr::select(-dplyr::matches("统计量"))
+      table_out <- table_out %>% dplyr::select(-dplyr::matches("P值"))
     }
 
 
@@ -433,17 +441,17 @@ c_srt <- function(data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_betwe
     ft<-if(outyn==1){
       #绘制表格
 
-      ft <- flextable(table_out)
-      ft <- color(ft,part = 'footer', color = 'black')
-      ft <- set_caption(ft,caption = table_title)
-      ft<-font(ft,fontname="SimSun",part="all")
-      ft<-font(ft,fontname="Times New Roman",part="all")
-      ft<-hline_top(ft,border = fp_border_default(color="black",width=1.5),part="header")
-      ft<-hline_bottom(ft,border = fp_border_default(color="black",width=1.5),part="body")
-      ft<-hline(ft,i=1,border = fp_border_default(color="black",width=1),part="header")
-      ft <- add_footer_lines(ft,ftnote)
+      ft <- flextable::flextable(table_out)
+      ft <- flextable::color(ft,part = 'footer', color = 'black')
+      ft <- flextable::set_caption(ft,caption = table_title)
+      ft<-flextable::font(ft,fontname="SimSun",part="all")
+      ft<-flextable::font(ft,fontname="Times New Roman",part="all")
+      ft<-flextable::hline_top(ft,border = officer::fp_border(color="black",width=1.5),part="header")
+      ft<-flextable::hline_bottom(ft,border = officer::fp_border(color="black",width=1.5),part="body")
+      ft<-flextable::hline(ft,i=1,border = officer::fp_border(color="black",width=1),part="header")
+      ft <- flextable::add_footer_lines(ft,ftnote)
       rm(table_out,t_2,envir = .GlobalEnv)
-      ft <- autofit(ft)
+      ft <- flextable::autofit(ft)
       # ft <- set_table_properties(layout = "autofit", width = 1)
       ft
 
