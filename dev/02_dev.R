@@ -29,11 +29,9 @@ usethis::use_package("car")
 usethis::use_package("survival")
 usethis::use_package("officer")
 usethis::use_package("purrr")
-usethis::use_package("tibble")
 usethis::use_package("readxl")
 usethis::use_package("table1")
-usethis::use_package("survminer")
-
+usethis::use_package("magrittr")
 
 
 
