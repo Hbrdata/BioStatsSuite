@@ -25,7 +25,7 @@
 
 # adsl<-read_excel("E:/Rlanguage/2-system/R/R/rfile/数据/adsl.xlsx")
 #
-# q_describe(data_name = "adsl"
+# q_describe(data = "adsl"
 #            ,data_cond = "FAS!=''"
 #            ,var_name="HEIGHT"
 #            ,var_label="我是标签"

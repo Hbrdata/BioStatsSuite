@@ -142,8 +142,45 @@ mod_dataUpload_server <- function(id){
       reset_trigger = 0,    # 新增：重置触发器，用于通知筛选模块
       show_denominator_filter = FALSE, # 控制分母筛选模块显示
       denominator_filter_text = "",   # 分母筛选条件文本
-      file_type = NULL      # 文件类型
+      file_type = NULL,     # 文件类型
+      example_data_loaded = FALSE    # 标记示例数据是否已加载
     )
+
+    # 加载示例数据的函数
+    load_example_data <- function() {
+      if (is.null(rv$raw_data) && !rv$example_data_loaded) {
+        # 使用工具函数加载示例数据
+        df <- load_example_data(session, update_data_name = TRUE, data_name = "adsl")
+
+        if (!is.null(df)) {
+          rv$raw_data <- df
+          rv$current_data <- df
+          rv$filtered_data <- NULL
+          rv$is_filtered <- FALSE
+          rv$filter_text <- ""
+          rv$denominator_filter_text <- ""
+          rv$data_name <- "adsl"
+          rv$file_type <- "rda"
+          rv$example_data_loaded <- TRUE
+
+          showNotification("示例数据加载成功！", type = "message")
+        }
+      }
+    }
+
+    observe({
+      # 检查是否有外部触发信号 - 添加错误处理
+      tryCatch({
+        if (!is.null(session$userData$trigger_example_data) &&
+            is.function(session$userData$trigger_example_data) &&
+            session$userData$trigger_example_data()) {
+          message("Received trigger to load example data from external source")
+          load_example_data()
+        }
+      }, error = function(e) {
+        message("Error checking external trigger: ", e$message)
+      })
+    })
 
     # 重置文件输入框UI的函数
     reset_file_input_ui <- function() {
@@ -151,67 +188,20 @@ mod_dataUpload_server <- function(id){
       session$sendCustomMessage(type = "resetFileInputUI", message = ns("file"))
     }
 
-    # 从Rda文件中提取数据框的函数
-    extract_data_from_rda <- function(file_path) {
-      # 创建一个新的环境来加载Rda文件
-      env <- new.env()
-      load(file_path, envir = env)
 
-      # 获取环境中所有的对象
-      objects <- ls(env)
-
-      # 查找数据框对象
-      data_frames <- objects[sapply(objects, function(x) is.data.frame(get(x, envir = env)))]
-
-      if (length(data_frames) == 0) {
-        stop("Rda文件中没有找到数据框对象")
-      }
-
-      # 如果有多个数据框，选择第一个
-      if (length(data_frames) > 1) {
-        warning(sprintf("Rda文件中包含多个数据框，选择了第一个: %s", data_frames[1]))
-      }
-
-      # 返回第一个数据框
-      return(get(data_frames[1], envir = env))
-    }
-
-    # 检查是否为CSV文件
-    output$is_csv_file <- reactive({
-      req(input$file)
-      file_ext <- tolower(tools::file_ext(input$file$name))
-      file_ext %in% c("csv", "txt")
-    })
-    outputOptions(output, "is_csv_file", suspendWhenHidden = FALSE)
-
-    # 响应上传文件
+    # 响应上传文件 - 简化版本
     observeEvent(input$file, {
       req(input$file)
 
       tryCatch({
-        file_ext <- tolower(tools::file_ext(input$file$name))
-        rv$file_type <- file_ext
-
-        if (file_ext %in% c("xlsx", "xls")) {
-          df <- readxl::read_excel(input$file$datapath)
-        } else if (file_ext %in% c("sas7bdat")) {
-          df <- haven::read_sas(input$file$datapath)
-          if (!is.data.frame(df)) {
-            stop("读取的SAS文件没有返回有效的数据框")
-          }
-        } else if (file_ext %in% c("rda", "rdata")) {
-          df <- extract_data_from_rda(input$file$datapath)
-        } else if (file_ext %in% c("csv", "txt")) {
-          # 读取CSV文件
-          df <- read.csv(input$file$datapath,
-                         sep = input$csv_separator,
-                         dec = input$csv_decimal,
-                         header = input$csv_header,
-                         stringsAsFactors = FALSE,
-                         fileEncoding = "UTF-8")
-        } else {
-          stop("请上传Excel文件(.xlsx, .xls)、SAS文件(.sas7bdat)、CSV文件(.csv, .txt)或R数据文件(.rda, .RData)")
-        }
+        # 使用统一的函数读取文件
+        df <- read_data_file(
+          file_path = input$file$datapath,
+          file_name = input$file$name,
+          csv_separator = input$csv_separator,
+          csv_decimal = input$csv_decimal,
+          csv_header = input$csv_header
+        )
 
         rv$raw_data <- df
         rv$current_data <- df
@@ -222,6 +212,7 @@ mod_dataUpload_server <- function(id){
 
         data_name <- tools::file_path_sans_ext(input$file$name)
         rv$data_name <- data_name
+        rv$file_type <- tolower(tools::file_ext(input$file$name))
 
         updateTextInput(session, "data_name", value = data_name)
         showNotification("数据上传成功！", type = "message")

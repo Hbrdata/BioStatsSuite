@@ -158,7 +158,7 @@ mod_q_describe_server <- function(id, data_upload_module) {
                         data_upload_module()$filter_text != "") {
           data_upload_module()$filter_text
         } else {
-          "FAS!=''"  # 默认条件
+          ""  # 默认条件
         },
         var_name = input$var_name,
         var_label = input$var_label,
