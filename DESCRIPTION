@@ -23,6 +23,7 @@ Imports:
     readxl,
     rlang,
     shiny,
+    shinyjs,
     stats,
     survival,
     table1,
