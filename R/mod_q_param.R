@@ -191,13 +191,13 @@ mod_q_param_server <- function(id, data_upload_module){
                         data_upload_module()$filter_text != "") {
           paste0(data_upload_module()$data_name, "|", data_upload_module()$filter_text)
         } else {
-          paste0(data_upload_module()$data_name, "|FAS=='是'")
+          data_upload_module()$data_name
         },
         denominator_cond = if (!is.null(data_upload_module()$filter_text) &&
                                data_upload_module()$filter_text != "") {
           paste0(data_upload_module()$data_name, "|", data_upload_module()$filter_text)
         } else {
-          paste0(data_upload_module()$data_name, "|FAS=='是'")
+          data_upload_module()$data_name
         },
         group_c = group_cond_text,
         varlist = varlist_text,
