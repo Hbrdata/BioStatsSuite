@@ -36,12 +36,20 @@ mod_dataUpload_sidebar_ui <- function(id) {
                   placeholder = "Excel、SAS、CSV或R数据文件")
       ),
 
+      # 示例数据按钮
+      tags$div(
+        style = "margin-bottom: 15px;",
+        actionButton(ns("load_example"), "上传示例数据",
+                     icon = icon("table"),
+                     style = "background-color: #3498db; color: white; width: 100%;")
+      ),
+
       # 文件信息
       tags$div(
         style = "background-color: #f8f9fa; padding: 8px 12px; border-radius: 5px; margin-bottom: 15px; border-left: 3px solid #6c757d;",
         tags$small(icon("info-circle"), "支持格式: .xlsx, .xls, .sas7bdat, .rda, .RData, .csv, .txt", style = "color: #6c757d;"),
         tags$br(),
-        tags$small(icon("hard-drive"), "最大文件大小: 100MB", style = "color: #6c757d;")
+        tags$small(icon("hard-drive"), "最大文件大小: 5MB", style = "color: #6c757d;")
       ),
 
       # CSV分隔符选择（条件面板）
@@ -65,10 +73,10 @@ mod_dataUpload_sidebar_ui <- function(id) {
 
 
       # 数据集名称
-      textInput(ns("data_name"), "数据集名称",
-                value = "",
-                placeholder = "文件上传后自动填充",
-                width = "100%"),
+      # textInput(ns("data_name"), "数据集名称",
+      #           value = "",
+      #           placeholder = "文件上传后自动填充",
+      #           width = "100%"),
 
       # 清空按钮
       actionButton(ns("clear_data"), "清空上传数据",
@@ -89,6 +97,13 @@ mod_dataUpload_sidebar_ui <- function(id) {
         tags$div(style = "margin-top: 20px; padding-top: 15px; border-top: 1px dashed #dee2e6;",
                  mod_data_filter_ui(ns("denominator_filter_1"),type="总数", show_apply_button = FALSE)
                  )
+      )
+
+      # 调试按钮（可选）
+      ,conditionalPanel(
+        condition = "false",  # 默认隐藏，改为true可显示
+        actionButton(ns("debug_load_example"), "调试：加载示例数据",
+                     style = "background-color: #ff6b6b; color: white; margin-top: 10px;")
       )
     )
   )
@@ -132,55 +147,81 @@ mod_dataUpload_server <- function(id){
 
     # 创建响应式值存储数据
     rv <- reactiveValues(
-      raw_data = NULL,      # 原始上传数据
-      current_data = NULL,  # 当前显示数据（原始或筛选后）
-      filtered_data = NULL, # 筛选后的数据
+      raw_data = NULL,
+      current_data = NULL,
+      filtered_data = NULL,
       data_name = NULL,
-      is_filtered = FALSE,  # 标记数据是否经过筛选
-      filter_text = "",      # 当前筛选条件文本
-      is_resetting = FALSE, # 标记是否正在重置
-      reset_trigger = 0,    # 新增：重置触发器，用于通知筛选模块
-      show_denominator_filter = FALSE, # 控制分母筛选模块显示
-      denominator_filter_text = "",   # 分母筛选条件文本
-      file_type = NULL,     # 文件类型
-      example_data_loaded = FALSE    # 标记示例数据是否已加载
+      is_filtered = FALSE,
+      filter_text = "",
+      is_resetting = FALSE,
+      reset_trigger = 0,
+      show_denominator_filter = FALSE,
+      denominator_filter_text = "",
+      file_type = NULL,
+      example_data_loaded = FALSE,
+      current_analysis_type = NULL
     )
 
-    # 加载示例数据的函数
-    load_example_data <- function() {
-      if (is.null(rv$raw_data) && !rv$example_data_loaded) {
-        # 使用工具函数加载示例数据
-        df <- load_example_data(session, update_data_name = TRUE, data_name = "adsl")
+    # 监听分析类型变化
+    observe({
+      analysis_type <- getAnalysisType()
+      if (!is.null(analysis_type)) {
+        rv$current_analysis_type <- analysis_type
+      }
+    })
 
-        if (!is.null(df)) {
-          rv$raw_data <- df
-          rv$current_data <- df
+    # 加载示例数据的函数
+    load_example_data_wrapper <- function() {
+      if (is.null(rv$raw_data) && !rv$example_data_loaded) {
+        analysis_type <- rv$current_analysis_type
+
+        if (is.null(analysis_type)) {
+          message("No analysis type specified for example data loading")
+          return()
+        }
+
+        result <- load_example_data(analysis_type = analysis_type)
+
+        if (!is.null(result) && result$loaded_successfully) {
+          rv$raw_data <- result$data
+          rv$current_data <- result$data
           rv$filtered_data <- NULL
           rv$is_filtered <- FALSE
           rv$filter_text <- ""
           rv$denominator_filter_text <- ""
-          rv$data_name <- "adsl"
-          rv$file_type <- "rda"
+          rv$data_name <- result$data_name
+          rv$file_type <- result$file_type
           rv$example_data_loaded <- TRUE
 
-          showNotification("示例数据加载成功！", type = "message")
+          updateTextInput(session, "data_name", value = result$data_name)
+          showNotification(paste("示例数据加载成功！(", result$data_name, ")", sep = ""), type = "message")
+
+          message("Example data loaded successfully for analysis: ", analysis_type)
+          message("Data name: ", result$data_name)
+          message("Dimensions: ", nrow(result$data), " x ", ncol(result$data))
+
+        } else if (!is.null(result)) {
+          showNotification(paste("加载示例数据错误:", result$error_message), type = "error")
         }
       }
     }
 
-    observe({
-      # 检查是否有外部触发信号 - 添加错误处理
-      tryCatch({
-        if (!is.null(session$userData$trigger_example_data) &&
-            is.function(session$userData$trigger_example_data) &&
-            session$userData$trigger_example_data()) {
-          message("Received trigger to load example data from external source")
-          load_example_data()
-        }
-      }, error = function(e) {
-        message("Error checking external trigger: ", e$message)
-      })
+    # 监听示例数据按钮点击
+    observeEvent(input$load_example, {
+      load_example_data_wrapper()
     })
+
+    # 监听外部触发加载示例数据的信号
+    observe({
+      trigger_signal <- session$userData$trigger_example_data
+      if (!is.null(trigger_signal) && is.function(trigger_signal)) {
+        should_trigger <- trigger_signal()
+        if (!is.null(should_trigger) && is.logical(should_trigger) && should_trigger) {
+          load_example_data_wrapper()
+        }
+      }
+    })
+
 
     # 重置文件输入框UI的函数
     reset_file_input_ui <- function() {
@@ -188,13 +229,12 @@ mod_dataUpload_server <- function(id){
       session$sendCustomMessage(type = "resetFileInputUI", message = ns("file"))
     }
 
-
-    # 响应上传文件 - 简化版本
+    # 响应上传文件
     observeEvent(input$file, {
       req(input$file)
 
       tryCatch({
-        # 使用统一的函数读取文件
+        # 使用工具函数读取数据
         df <- read_data_file(
           file_path = input$file$datapath,
           file_name = input$file$name,
@@ -206,13 +246,16 @@ mod_dataUpload_server <- function(id){
         rv$raw_data <- df
         rv$current_data <- df
         rv$filtered_data <- NULL
-        rv$is_filtered <- FALSE
+        rv$is_filtered = FALSE
         rv$filter_text <- ""
         rv$denominator_filter_text <- ""
 
-        data_name <- tools::file_path_sans_ext(input$file$name)
+        # 使用工具函数获取数据名称
+        data_name <- get_data_name(input$file$name)
         rv$data_name <- data_name
-        rv$file_type <- tolower(tools::file_ext(input$file$name))
+
+        # 使用工具函数获取文件类型
+        rv$file_type <- get_file_type(input$file$name)
 
         updateTextInput(session, "data_name", value = data_name)
         showNotification("数据上传成功！", type = "message")
@@ -221,6 +264,14 @@ mod_dataUpload_server <- function(id){
         showNotification(paste("上传错误:", e$message), type = "error")
       })
     })
+
+    # 检查是否为CSV文件
+    output$is_csv_file <- reactive({
+      req(input$file)
+      file_ext <- tolower(tools::file_ext(input$file$name))
+      file_ext %in% c("csv", "txt")
+    })
+    outputOptions(output, "is_csv_file", suspendWhenHidden = FALSE)
 
     # 初始化数据筛选模块
     data_filter_module <- mod_data_filter_server("data_filter_1", reactive({
@@ -260,6 +311,10 @@ mod_dataUpload_server <- function(id){
     })
     outputOptions(output, "show_denominator_filter", suspendWhenHidden = FALSE)
 
+    observeEvent(input$debug_load_example, {
+      load_example_data()
+    })
+
     # 获取当前显示的数据（可能是原始数据或筛选后数据）
     current_data <- reactive({
       if (rv$is_filtered && !is.null(rv$filtered_data)) {
@@ -273,6 +328,11 @@ mod_dataUpload_server <- function(id){
     observe({
       req(data_filter_module()$current_filter_text)
       req(rv$raw_data)
+
+      # 确保筛选模块返回有效数据
+      if (is.null(data_filter_module()$current_filter_text)) {
+        return()
+      }
 
       filter_text <- data_filter_module()$current_filter_text
 
@@ -306,6 +366,8 @@ mod_dataUpload_server <- function(id){
       rv$denominator_filter_text <- ""
       rv$is_resetting <- FALSE
       rv$file_type <- NULL
+      rv$example_data_loaded <- FALSE
+      rv$current_data_category <- NULL
 
       # 重置文件输入框的显示
       reset_file_input_ui()
@@ -319,7 +381,7 @@ mod_dataUpload_server <- function(id){
       if (is.null(rv$current_data)) {
         tags$div(
           style = "color: #dc3545;",
-          icon("exclamation-triangle"), "请先上传数据文件"
+          icon("exclamation-triangle"), "请先上传数据文件或示例数据"
         )
       } else if (rv$is_filtered) {
         tags$div(
@@ -327,6 +389,11 @@ mod_dataUpload_server <- function(id){
           icon("filter"), "已应用筛选条件（显示筛选后数据）",
           actionButton(ns("reset_data"), "重置为原始数据",
                        style = "margin-left: 15px; padding: 2px 8px; font-size: 12px;")
+        )
+      } else if (rv$example_data_loaded) {
+        tags$div(
+          style = "color: #17a2b8;",
+          icon("database"), "显示示例数据（未筛选）"
         )
       } else {
         tags$div(
@@ -400,6 +467,10 @@ mod_dataUpload_server <- function(id){
 
     # 返回响应式值
     return(reactive({
+      # 确保数据存在才返回
+      if (is.null(rv$raw_data)) {
+        return(NULL)
+      }
       list(
         raw_data = rv$raw_data,
         current_data = rv$current_data,

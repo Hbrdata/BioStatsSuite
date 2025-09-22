@@ -58,35 +58,14 @@ mod_analyze_server <- function(id, data_upload_module) {
       input$analysis_type
     })
 
-    # ————————————————————————————————————————————————————
     # 监听分析类型变化
     observe({
       req(current_analysis_type())
 
-      # 检查数据上传模块是否就绪
-      module_ready <- !is.null(data_upload_module)
-      data_exists <- FALSE
+      # 调试信息
+      message("Analysis type changed to: ", current_analysis_type())
 
-      if (module_ready) {
-        tryCatch({
-          data <- data_upload_module()
-          data_exists <- !is.null(data) && !is.null(data$raw_data)
-        }, error = function(e) {
-          # 模块可能还未完全初始化
-          data_exists <- FALSE
-        })
-      }
-
-      message("Analysis type: ", current_analysis_type())
-      message("Module ready: ", module_ready)
-      message("Data exists: ", data_exists)
-
-      # 当选择q_describe时
-      if (current_analysis_type() == "q_describe") {
-        message("q_describe selected - checking for example data loading")
-      }
     })
-    # ————————————————————————————————————————————————————
 
 
     # 动态渲染参数UI

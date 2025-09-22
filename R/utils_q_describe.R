@@ -25,7 +25,7 @@
 
 # adsl<-read_excel("E:/Rlanguage/2-system/R/R/rfile/数据/adsl.xlsx")
 #
-# q_describe(data = "adsl"
+# q_describe(data_name = "adsl"
 #            ,data_cond = "FAS!=''"
 #            ,var_name="HEIGHT"
 #            ,var_label="我是标签"
@@ -43,6 +43,11 @@ q_describe<-function(data_name,data_cond,var_name,var_label,group_name,group_con
 
   ##############根据条件创建数据框###########
   ############## 处理 group_cond 参数 ##############
+  # 如果 data_cond 为空或无效，以及使用示例数据进行分析，使用 TRUE 条件（选择所有数据）
+  if (is.null(data_cond) || data_cond == "" || is.na(data_cond)) {
+    data_cond <- "TRUE"  # 选择所有行
+  }
+
   # 如果 group_cond 是字符串，按逗号分割并处理
   if (is.character(group_cond) && length(group_cond) == 1) {
     # 分割字符串并去除前后空格

@@ -6,20 +6,6 @@
 #'
 #' @importFrom shiny NS tagList
 #' @importFrom stats na.omit var
-# mod_q_describe_ui <- function(id) {
-#   ns <- NS(id)
-#   tagList(
-#     # 原有的其他参数
-#     textInput(ns("var_name"), "变量名", value = "HEIGHT", placeholder = "例如: AGE, HEIGHT, WEIGHT"),
-#     textInput(ns("var_label"), "变量标签", value = "身高", placeholder = "例如: 年龄, 身高, 体重"),
-#     textInput(ns("group_name"), "分组变量名", value = "arm3", placeholder = "例如: TRT01A, ARM"),
-#     textInput(ns("group_cond"), "分组条件（用逗号分隔）", value = "对照组,试验组,安慰剂组", placeholder = "例如: 对照组,试验组"),
-#     textInput(ns("table_title"), "表格标题", value = "描述性统计表", placeholder = "输入表格标题"),
-#     textInput(ns("ftnote"), "底注", value = "我是底注", placeholder = "输入表格底注"),
-#     checkboxInput(ns("totalyn"), "是否显示合计列", value = TRUE)
-#   )
-# }
-
 mod_q_describe_ui <- function(id) {
   ns <- NS(id)
   tagList(
