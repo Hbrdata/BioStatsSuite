@@ -50,6 +50,7 @@ rsconnect::deployApp(
     # Add any additional files unique to your app here.
     "R/",
     "dev/",
+    "man/",
     "inst/",
     "data/",
     "NAMESPACE",
