@@ -79,13 +79,13 @@ read_data_file <- function(file_path, file_name, csv_separator = ",", csv_decima
 #' @export
 get_example_data_path <- function(analysis_type) {
   example_files <- list(
-    "q_describe" = "data/adsl.Rda",
-    "c_describe" = "data/adsl.Rda",
-    "c_srt" = "data/tyypspa.Rda",
-    "q_param" = "data/cov_adur.Rda",
-    "covancova" = "data/adts.Rda",
-    "crosstable" = "data/adcrslb.Rda",
-    "lifetest" = "data/adhj.Rda"
+    "q_describe" = "adsl.Rda",
+    "c_describe" = "adsl.Rda",
+    "c_srt" = "tyypspa.Rda",
+    "q_param" = "cov_adur.Rda",
+    "covancova" = "adts.Rda",
+    "crosstable" = "adcrslb.Rda",
+    "lifetest" = "adhj.Rda"
   )
 
   file_name <- example_files[[analysis_type]]
@@ -95,20 +95,59 @@ get_example_data_path <- function(analysis_type) {
     return(NULL)
   }
 
-  # 检查文件是否存在
-  if (file.exists(file_name)) {
-    return(file_name)
-  }
-
-  # 如果相对路径不存在，尝试系统文件路径
-  sys_file <- system.file("data", basename(file_name), package = "BioStatsSuite")
+  # 优先使用系统文件路径（适用于包安装和部署环境）
+  sys_file <- system.file("data", file_name, package = "BioStatsSuite")
   if (file.exists(sys_file)) {
     return(sys_file)
+  }
+
+  # 如果系统路径不存在，尝试相对路径（适用于开发环境）
+  relative_path <- file.path("data", file_name)
+  if (file.exists(relative_path)) {
+    return(relative_path)
+  }
+
+  # 尝试应用内的绝对路径
+  app_path <- file.path(getwd(), "data", file_name)
+  if (file.exists(app_path)) {
+    return(app_path)
   }
 
   warning(paste("Example data file not found:", file_name))
   return(NULL)
 }
+# get_example_data_path <- function(analysis_type) {
+#   example_files <- list(
+#     "q_describe" = "data/adsl.Rda",
+#     "c_describe" = "data/adsl.Rda",
+#     "c_srt" = "data/tyypspa.Rda",
+#     "q_param" = "data/cov_adur.Rda",
+#     "covancova" = "data/adts.Rda",
+#     "crosstable" = "data/adcrslb.Rda",
+#     "lifetest" = "data/adhj.Rda"
+#   )
+#
+#   file_name <- example_files[[analysis_type]]
+#
+#   if (is.null(file_name)) {
+#     warning(paste("No example data defined for analysis type:", analysis_type))
+#     return(NULL)
+#   }
+#
+#   # 检查文件是否存在
+#   if (file.exists(file_name)) {
+#     return(file_name)
+#   }
+#
+#   # 如果相对路径不存在，尝试系统文件路径
+#   sys_file <- system.file("data", basename(file_name), package = "BioStatsSuite")
+#   if (file.exists(sys_file)) {
+#     return(sys_file)
+#   }
+#
+#   warning(paste("Example data file not found:", file_name))
+#   return(NULL)
+# }
 
 #' Get default data name based on analysis type
 #'
@@ -139,44 +178,60 @@ load_example_data <- function(analysis_type = NULL, custom_path = NULL) {
   # 确定要加载的文件路径
   if (!is.null(custom_path) && file.exists(custom_path)) {
     file_path <- custom_path
+    message("Using custom path: ", file_path)
   } else if (!is.null(analysis_type)) {
     file_path <- get_example_data_path(analysis_type)
     if (is.null(file_path)) {
       message("No example data path found for analysis type: ", analysis_type)
       return(NULL)
     }
+    message("Using analysis-specific path: ", file_path)
   } else {
     # 默认示例数据
-    default_paths <- c("data/adsl.Rda", system.file("data", "adsl.Rda", package = "BioStatsSuite"))
+    default_paths <- c(
+      system.file("data", "adsl.Rda", package = "BioStatsSuite"),
+      file.path("data", "adsl.Rda"),
+      file.path(getwd(), "data", "adsl.Rda")
+    )
+
     file_path <- NULL
     for (path in default_paths) {
+      message("Checking path: ", path)
       if (file.exists(path)) {
         file_path <- path
+        message("Found file at: ", path)
         break
       }
     }
+
     if (is.null(file_path)) {
-      message("Default example data not found")
+      message("Default example data not found in any location")
       return(NULL)
     }
   }
 
-  message("Loading example data from: ", file_path)
+  message("Final file path: ", file_path)
+  message("File exists: ", file.exists(file_path))
 
   tryCatch({
     # 创建新环境加载数据
     env <- new.env()
-    load(file_path, envir = env)
+    load_result <- load(file_path, envir = env)
+    message("Loaded objects: ", paste(load_result, collapse = ", "))
 
     # 获取环境中的数据框
     data_objects <- ls(env)
+    message("Objects in environment: ", paste(data_objects, collapse = ", "))
+
     data_frames <- data_objects[sapply(data_objects, function(x) is.data.frame(get(x, envir = env)))]
+    message("Data frames found: ", paste(data_frames, collapse = ", "))
 
     if (length(data_frames) == 0) {
       stop("示例数据文件中没有找到数据框")
     }
 
     df <- get(data_frames[1], envir = env)
+    message("Data dimensions: ", nrow(df), " x ", ncol(df))
 
     # 获取默认数据名称
     data_name <- if (!is.null(analysis_type)) {
@@ -204,6 +259,75 @@ load_example_data <- function(analysis_type = NULL, custom_path = NULL) {
     ))
   })
 }
+# load_example_data <- function(analysis_type = NULL, custom_path = NULL) {
+#   # 确定要加载的文件路径
+#   if (!is.null(custom_path) && file.exists(custom_path)) {
+#     file_path <- custom_path
+#   } else if (!is.null(analysis_type)) {
+#     file_path <- get_example_data_path(analysis_type)
+#     if (is.null(file_path)) {
+#       message("No example data path found for analysis type: ", analysis_type)
+#       return(NULL)
+#     }
+#   } else {
+#     # 默认示例数据
+#     default_paths <- c("data/adsl.Rda", system.file("data", "adsl.Rda", package = "BioStatsSuite"))
+#     file_path <- NULL
+#     for (path in default_paths) {
+#       if (file.exists(path)) {
+#         file_path <- path
+#         break
+#       }
+#     }
+#     if (is.null(file_path)) {
+#       message("Default example data not found")
+#       return(NULL)
+#     }
+#   }
+#
+#   message("Loading example data from: ", file_path)
+#
+#   tryCatch({
+#     # 创建新环境加载数据
+#     env <- new.env()
+#     load(file_path, envir = env)
+#
+#     # 获取环境中的数据框
+#     data_objects <- ls(env)
+#     data_frames <- data_objects[sapply(data_objects, function(x) is.data.frame(get(x, envir = env)))]
+#
+#     if (length(data_frames) == 0) {
+#       stop("示例数据文件中没有找到数据框")
+#     }
+#
+#     df <- get(data_frames[1], envir = env)
+#
+#     # 获取默认数据名称
+#     data_name <- if (!is.null(analysis_type)) {
+#       get_default_data_name(analysis_type)
+#     } else {
+#       tools::file_path_sans_ext(basename(file_path))
+#     }
+#
+#     # 返回数据和元数据
+#     return(list(
+#       data = df,
+#       data_name = data_name,
+#       file_type = "rda",
+#       file_path = file_path,
+#       analysis_type = analysis_type,
+#       loaded_successfully = TRUE
+#     ))
+#
+#   }, error = function(e) {
+#     message("Error loading example data: ", e$message)
+#     return(list(
+#       data = NULL,
+#       error_message = e$message,
+#       loaded_successfully = FALSE
+#     ))
+#   })
+# }
 
 #' Get data file type
 #'

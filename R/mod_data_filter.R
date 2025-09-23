@@ -68,7 +68,7 @@ mod_data_filter_ui <- function(id,type, show_apply_button = TRUE) {
           ),
           column(3,
                  selectInput(ns("filter_operator"), "运算符",
-                             choices = c("等于 ==", "不等于 !=", "包含 %in%", "大于 >", "大于等于 >=", "小于 <", "小于等于 <="))
+                             choices = c("等于", "不等于", "包含", "大于", "大于或等于", "小于", "小于或等于"))
           ),
           column(5,
                  conditionalPanel(
@@ -220,13 +220,13 @@ mod_data_filter_server <- function(id, data_upload_module) {
 
       # 获取实际运算符
       operator_map <- c(
-        "等于 ==" = "==",
-        "不等于 !=" = "!=",
-        "包含 %in%" = "%in%",
-        "大于 >" = ">",
-        "大于等于 >=" = ">=",
-        "小于 <" = "<",
-        "小于等于 <=" = "<="
+        "等于" = "==",
+        "不等于" = "!=",
+        "包含" = "%in%",
+        "大于" = ">",
+        "大于或等于" = ">=",
+        "小于" = "<",
+        "小于或等于" = "<="
       )
       actual_operator <- operator_map[input$filter_operator]
 

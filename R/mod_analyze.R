@@ -15,8 +15,8 @@ mod_analyze_sidebar_ui <- function(id) {
                             "分类变量描述" = "c_describe",
                             "秩和检验" = "c_srt",
                             "协方差分析" = "covancova",
-                            "差异检验" = "q_param",
-                            "实验室交叉表分析" = "crosstable",
+                            "组间/组内比较" = "q_param",
+                            "2*2列联表" = "crosstable",
                             "生存分析" = "lifetest")),
 
     # 条件面板

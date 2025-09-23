@@ -95,15 +95,8 @@ mod_dataUpload_sidebar_ui <- function(id) {
       conditionalPanel(
         condition = paste0("output['", ns("has_data"), "'] && output['", ns("show_denominator_filter"), "']"),
         tags$div(style = "margin-top: 20px; padding-top: 15px; border-top: 1px dashed #dee2e6;",
-                 mod_data_filter_ui(ns("denominator_filter_1"),type="总数", show_apply_button = FALSE)
+                 mod_data_filter_ui(ns("denominator_filter_1"),type="分析人数", show_apply_button = FALSE)
                  )
-      )
-
-      # 调试按钮（可选）
-      ,conditionalPanel(
-        condition = "false",  # 默认隐藏，改为true可显示
-        actionButton(ns("debug_load_example"), "调试：加载示例数据",
-                     style = "background-color: #ff6b6b; color: white; margin-top: 10px;")
       )
     )
   )
