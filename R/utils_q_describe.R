@@ -43,11 +43,6 @@ q_describe<-function(data,data_cond,var_name,var_label,group_name,group_cond,tab
 
   ##############根据条件创建数据框###########
   ############## 处理 group_cond 参数 ##############
-  # 如果 data_cond 为空或无效，以及使用示例数据进行分析，使用 TRUE 条件（选择所有数据）
-  if (is.null(data_cond) || data_cond == "" || is.na(data_cond)) {
-    data_cond <- "TRUE"  # 选择所有行
-  }
-
   # 如果 group_cond 是字符串，按逗号分割并处理
   if (is.character(group_cond) && length(group_cond) == 1) {
     # 分割字符串并去除前后空格

@@ -144,7 +144,7 @@ mod_q_describe_server <- function(id, data_upload_module) {
                         data_upload_module()$filter_text != "") {
           data_upload_module()$filter_text
         } else {
-          ""  # 默认条件
+          "TRUE"  # 默认选择所有行
         },
         var_name = input$var_name,
         var_label = input$var_label,
