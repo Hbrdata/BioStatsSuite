@@ -84,18 +84,12 @@ q_describe<-function(data,data_cond,var_name,var_label,group_name,group_cond,tab
 
   # data_0_out <<- data_0
 
-  # var_expr <- rlang::ensym(var_name)
-  # group_expr <- rlang::ensym(group_name)
-  #
-  var_expr <- var_name
-  group_expr <- group_name
+  var_expr <- rlang::ensym(var_name)
+  group_expr <- rlang::ensym(group_name)
 
 
   d_0 <- data_0 %>%
-    dplyr::select(all_of(c(var_expr, group_expr)))
-
-  # d_0_out <<- d_0
-
+    dplyr::select({{var_expr}},{{group_expr}})
 
   d_1 <- stats::setNames(d_0,c("var_0","group_0"))
 
