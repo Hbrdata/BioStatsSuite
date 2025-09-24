@@ -77,7 +77,7 @@ mod_lifetest_ui <- function(id) {
       # 表格设置
       textInput(ns("topleftlabel"), "左列标签", value = "指标"),
       textInput(ns("title"), "表格标题", value = "生存分析结果"),
-      textInput(ns("footnote"), "底注", value = "")
+      textInput(ns("footnote"), "表格底注", value = "")
     )
   )
 }
@@ -205,11 +205,11 @@ mod_lifetest_server <- function(id, data_upload_module){
 
       list(
         data_cond = if (!is.null(data_upload_module()$filter_text) &&
-                        data_upload_module()$filter_text != "") {
-          paste0(data_upload_module()$data_name, "|", data_upload_module()$filter_text)
-        } else {
-          paste0(data_upload_module()$data_name, "|FAS=='是'")
-        },
+                           data_upload_module()$filter_text != "") {
+            data_upload_module()$filter_text
+          } else {
+            "TRUE"  # 默认选择所有行
+          },
         group_c = group_cond_text,
         censor = input$censor_var,
         time_label = time_label_text,

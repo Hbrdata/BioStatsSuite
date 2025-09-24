@@ -2,7 +2,7 @@
 #'
 #' @description A utils function for descriptive statistics of continuous variables
 #'
-#' @param data_name Name of the data frame
+#' @param data Object of the data frame
 #' @param data_cond Data filtering condition
 #' @param var_name Variable name for analysis
 #' @param var_label Variable label
@@ -25,7 +25,7 @@
 
 # adsl<-read_excel("E:/Rlanguage/2-system/R/R/rfile/数据/adsl.xlsx")
 #
-# q_describe(data_name = "adsl"
+# q_describe(data = "adsl"
 #            ,data_cond = "FAS!=''"
 #            ,var_name="HEIGHT"
 #            ,var_label="我是标签"
@@ -38,7 +38,7 @@
 
 
 
-q_describe<-function(data_name,data_cond,var_name,var_label,group_name,group_cond,table_title,ftnote,totalyn,outyn=1)
+q_describe<-function(data,data_cond,var_name,var_label,group_name,group_cond,table_title,ftnote,totalyn,outyn=1)
 {
 
   ##############根据条件创建数据框###########
@@ -64,7 +64,7 @@ q_describe<-function(data_name,data_cond,var_name,var_label,group_name,group_con
   }
 
   ##############根据条件创建数据框###########
-  data_0 <- get(data_name)
+  data_0 <- data  # 直接使用传入的数据框
 
 
     data_cond_0 <- rlang::parse_expr(data_cond)
@@ -231,10 +231,10 @@ q_describe<-function(data_name,data_cond,var_name,var_label,group_name,group_con
   t_2 <- dplyr::slice(t_1, -1)# 移除第一行
   names(t_2) <- col_names # 将第一行的值设置为列名
   # t_2[is.na(t_2)] <- ""   #将数据框中NA显示为空值
-  t_2[2,1] <- 'N(Missing)'
-  t_2[3,1] <- 'Mean(SD)'
-  t_2[4,1] <- 'Median(Q1,Q3)'
-  t_2[5,1] <- 'Min,Max'
+  t_2[2,1] <- '  N(Missing)'
+  t_2[3,1] <- '  Mean(SD)'
+  t_2[4,1] <- '  Median(Q1,Q3)'
+  t_2[5,1] <- '  Min,Max'
 
   names(t_2) <- title_name
 

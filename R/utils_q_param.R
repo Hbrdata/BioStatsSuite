@@ -44,7 +44,7 @@
 
 
 
-q_param<-function(data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,outyn=1,test_between,title,footnote)
+q_param<-function(data, data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,outyn=1,test_between,title,footnote)
 {
 
 
@@ -74,11 +74,9 @@ q_param<-function(data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,
 
 
   ##############根据条件创建数据框###########
-  data_cond_part <- unlist(strsplit(data_cond,"|",fixed = TRUE))
-  data_n_ <- data_cond_part[1]
-  cond_n_ <- data_cond_part[2]
+  cond_n_ <- data_cond
 
-  data_0 <- get(data_n_)
+  data_0 <- data
   cond_n_ <- parse_expr(cond_n_)
   data_0 <- data_0  %>%
     dplyr::filter(!!cond_n_) #根据条件筛选出数据框
@@ -109,11 +107,12 @@ q_param<-function(data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,
 
 
   #制作表头
-  data_cond_part_title <- unlist(strsplit(denominator_cond,"|",fixed = TRUE))
-  data_n_title <- data_cond_part_title[1]
-  cond_n_title <- data_cond_part_title[2]
+  # data_cond_part_title <- unlist(strsplit(denominator_cond,"|",fixed = TRUE))
+  # data_n_title <- data_cond_part_title[1]
+  cond_n_title <- denominator_cond
 
-  data_1 <- get(data_n_title)
+  # data_1 <- get(data_n_title)
+  data_1 <- data
   cond_n_title <- rlang::parse_expr(cond_n_title)
   data_1 <- data_1  %>%
     dplyr::filter(!!cond_n_title) #根据条件筛选出数据框
@@ -266,10 +265,10 @@ q_param<-function(data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,
   t_2 <- dplyr::slice(t_1, -1)# 移除第一行
   names(t_2) <- col_names # 将第一行的值设置为列名
   # t_2[is.na(t_2)] <- ""   #将数据框中NA显示为空值
-  t_2[2,1] <- 'N(Missing)'
-  t_2[3,1] <- 'Mean(SD)'
-  t_2[4,1] <- 'Median(Q1,Q3)'
-  t_2[5,1] <- 'Min,Max'
+  t_2[2,1] <- '  N(Missing)'
+  t_2[3,1] <- '  Mean(SD)'
+  t_2[4,1] <- '  Median(Q1,Q3)'
+  t_2[5,1] <- '  Min,Max'
   t_2$统计量 <- NA
   t_2$P值 <- NA
   t_2$统计量 <- as.character(t_2$统计量)

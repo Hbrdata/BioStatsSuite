@@ -65,7 +65,7 @@ mod_q_param_ui <- function(id) {
 
       # 表格设置
       textInput(ns("title"), "表格标题", value = "定量参数分析"),
-      textInput(ns("footnote"), "底注", value = "")
+      textInput(ns("footnote"), "表格底注", value = "")
     )
   )
 }
@@ -187,17 +187,17 @@ mod_q_param_server <- function(id, data_upload_module){
       }
 
       list(
-        data_cond = if (!is.null(data_upload_module()$filter_text) &&
-                        data_upload_module()$filter_text != "") {
-          paste0(data_upload_module()$data_name, "|", data_upload_module()$filter_text)
+        data_cond <- if (!is.null(data_upload_module()$filter_text) &&
+                         data_upload_module()$filter_text != "") {
+          data_upload_module()$filter_text
         } else {
-          paste0(data_upload_module()$data_name, "")
+          "TRUE"  # 默认选择所有行
         },
-        denominator_cond = if (!is.null(data_upload_module()$filter_text) &&
-                               data_upload_module()$filter_text != "") {
-          paste0(data_upload_module()$data_name, "|", data_upload_module()$filter_text)
+        denominator_cond <- if (!is.null(data_upload_module()$denominator_filter_text) &&
+                                data_upload_module()$denominator_filter_text != "") {
+          data_upload_module()$denominator_filter_text
         } else {
-          paste0(data_upload_module()$data_name, "")
+          "TRUE"  # 默认选择所有行
         },
         group_c = group_cond_text,
         varlist = varlist_text,

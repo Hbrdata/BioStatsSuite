@@ -74,7 +74,7 @@ mod_c_describe_ui <- function(id) {
                 width = "100%"),
 
       # 底注
-      textInput(ns("c_ftnote"), "底注",
+      textInput(ns("c_ftnote"), "表格底注",
                 value = "",
                 placeholder = "输入表格底注",
                 width = "100%")
@@ -183,23 +183,23 @@ mod_c_describe_server <- function(id, data_upload_module) {
     reactive({
       req(input$c_var_name, input$c_group_var)
 
-      # 构建数据条件（数据集名称 + 筛选条件）
-      data_name <- data_upload_module()$data_name
+      # # 构建数据条件（数据集名称 + 筛选条件）
+      # data_name <- data_upload_module()$data_name
 
-      # 统计筛选条件使用数据筛选模块的当前条件
+      # 构建数据条件（现在只包含筛选条件，不包含数据集名称）
       data_cond <- if (!is.null(data_upload_module()$filter_text) &&
                        data_upload_module()$filter_text != "") {
-        paste0(data_name, "|", data_upload_module()$filter_text)
+        data_upload_module()$filter_text
       } else {
-        paste0(data_name, "|FAS!=''")
+        "TRUE"  # 默认选择所有行
       }
 
-      # 构建分母条件（使用分母筛选模块的条件）
+      # 构建分母条件（同样只包含筛选条件）
       denominator_cond <- if (!is.null(data_upload_module()$denominator_filter_text) &&
                               data_upload_module()$denominator_filter_text != "") {
-        paste0(data_name, "|", data_upload_module()$denominator_filter_text)
+        data_upload_module()$denominator_filter_text
       } else {
-        paste0(data_name, "|FAS!=''")
+        "TRUE"  # 默认选择所有行
       }
 
       # 构建变量列表

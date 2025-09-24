@@ -46,7 +46,7 @@
 
 
 
-covancova <- function(data_cond,group_c,varlist,title1,title2,footnote1,footnote2)
+covancova <- function(data,data_cond,group_c,varlist,title1,title2,footnote1,footnote2)
 {
 
 
@@ -75,12 +75,10 @@ covancova <- function(data_cond,group_c,varlist,title1,title2,footnote1,footnote
 
   #############拆分数据集及条件
 
-  data_cond_part <- unlist(strsplit(data_cond,"|",fixed = TRUE))
+  cond_n_ <- data_cond
 
-  data_n_ <- data_cond_part[1]
-  cond_n_ <- data_cond_part[2]
-
-  data_0 <- get(data_n_)
+  data_0 <- data
+  # data_0 <- get(data_n_)
   cond_n_ <- rlang::parse_expr(cond_n_)
   data_0 <- data_0  %>%
     dplyr::filter(!!cond_n_) #根据条件筛选出数据框

@@ -61,7 +61,7 @@ mod_q_describe_ui <- function(id) {
                 width = "100%"),
 
       # 底注
-      textInput(ns("ftnote"), "底注",
+      textInput(ns("ftnote"), "表格底注",
                 value = "我是底注",
                 placeholder = "输入表格底注",
                 width = "100%"),

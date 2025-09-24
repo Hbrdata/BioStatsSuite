@@ -90,14 +90,14 @@ mod_dataUpload_sidebar_ui <- function(id) {
         tags$div(style = "margin-top: 20px; padding-top: 15px; border-top: 1px dashed #dee2e6;",
                  mod_data_filter_ui(ns("data_filter_1"),type="数据筛选", show_apply_button = TRUE)
                  )
-      ),
-      # 分母筛选模块
-      conditionalPanel(
-        condition = paste0("output['", ns("has_data"), "'] && output['", ns("show_denominator_filter"), "']"),
-        tags$div(style = "margin-top: 20px; padding-top: 15px; border-top: 1px dashed #dee2e6;",
-                 mod_data_filter_ui(ns("denominator_filter_1"),type="分析人数", show_apply_button = FALSE)
-                 )
       )
+      # 分母筛选模块
+      # ,conditionalPanel(
+      #   condition = paste0("output['", ns("has_data"), "'] && output['", ns("show_denominator_filter"), "']"),
+      #   tags$div(style = "margin-top: 20px; padding-top: 15px; border-top: 1px dashed #dee2e6;",
+      #            mod_data_filter_ui(ns("denominator_filter_1"),type="分析人数", show_apply_button = FALSE)
+      #            )
+      # )
     )
   )
 }
@@ -225,6 +225,13 @@ mod_dataUpload_server <- function(id){
     # 响应上传文件
     observeEvent(input$file, {
       req(input$file)
+
+      # ----------------test----------------
+      message("=== 文件上传调试信息 ===")
+      message("文件名: ", input$file$name)
+      message("文件路径: ", input$file$datapath)
+      message("文件大小: ", input$file$size)
+      # ----------------test----------------
 
       tryCatch({
         # 使用工具函数读取数据
@@ -458,10 +465,27 @@ mod_dataUpload_server <- function(id){
       )
     })
 
+
     # 返回响应式值
     return(reactive({
+      # -----------在返回的reactive中添加调试信息-----------
+      message("=== 数据模块返回信息 ===")
+      message("当前时间: ", Sys.time())
+      message("raw_data是否为NULL: ", is.null(rv$raw_data))
+      if (!is.null(rv$raw_data)) {
+        message("raw_data维度: ", nrow(rv$raw_data), " x ", ncol(rv$raw_data))
+        message("raw_data列名: ", paste(names(rv$raw_data), collapse = ", "))
+      }
+      message("current_data是否为NULL: ", is.null(rv$current_data))
+      message("data_name: ", rv$data_name)
+      message("is_filtered: ", rv$is_filtered)
+      # -----------在返回的reactive中添加调试信息-----------
+
+
+
       # 确保数据存在才返回
       if (is.null(rv$raw_data)) {
+        message("返回NULL因为raw_data为NULL")
         return(NULL)
       }
       list(

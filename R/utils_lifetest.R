@@ -45,24 +45,8 @@
 
 
 
-lifetest <- function(data_cond,group_c,censor,time_label,timelist,type,topleftlabel,title,footnote)
+lifetest <- function(data,data_cond,group_c,censor,time_label,timelist,type,topleftlabel,title,footnote)
 {
-
-  #生存分析
-  # library(readxl)
-  # library(dplyr)
-  # library(table1)
-  # library(tibble)
-  # library(kableExtra)
-  # library(officer)
-  # library(flextable)
-  # library(rlang)
-  # library(gmodels)
-  # library(tidyr)
-  # library(purrr)
-  # library(survminer)
-  # library(survival)
-
   ################## 拆分组别、分析变量 ################################
 
 
@@ -89,12 +73,11 @@ lifetest <- function(data_cond,group_c,censor,time_label,timelist,type,topleftla
   timevar_ <- timevarlabel_part[1]
   timelabel_ <- timevarlabel_part[2]
 
-  #拆分分析数据集及条件
-  data_cond_part <- unlist(strsplit(data_cond,"|",fixed = TRUE))
-  data_ <- data_cond_part[1]
-  cond_ <- data_cond_part[2]
+  #直接传递数据对象，不再使用get(data_name)的形式获取数据,避免无法获得交互数据
+  cond_ <- data_cond
 
-  data_0 <- get(data_)
+
+  data_0 <- data
   data_0 <- data_0 %>%
     dplyr::filter(!!rlang::parse_expr(cond_))
   group_cond <- c(grpnames_)

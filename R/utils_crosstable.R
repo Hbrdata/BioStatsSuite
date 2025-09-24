@@ -43,7 +43,7 @@
 
 
 
-c_crosstable <- function(data_cond,group_c, missing, row_colvar, format,table_title, footnote)
+c_crosstable <- function(data,data_cond,group_c, missing, row_colvar, format,table_title, footnote)
 {
 
   # library(readxl)
@@ -134,12 +134,11 @@ c_crosstable <- function(data_cond,group_c, missing, row_colvar, format,table_ti
     }
   }
 
-  data_cond_part <- unlist(strsplit(data_cond,"|",fixed = TRUE))
 
-  data_n_ <- data_cond_part[1]
-  cond_n_ <- data_cond_part[2]
+  cond_n_ <- data_cond
 
-  data_0 <- get(data_n_)
+
+  data_0 <- data
   cond_n_ <- parse_expr(cond_n_)
   data_0 <- data_0  %>%
     dplyr::filter(!!cond_n_) #根据条件筛选出数据框

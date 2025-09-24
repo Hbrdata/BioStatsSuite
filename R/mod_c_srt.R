@@ -64,7 +64,7 @@ mod_c_srt_ui <- function(id) {
           checkboxInput(ns("test_between"), "组间比较", value = 2),
           checkboxInput(ns("test_in"), "组内比较", value = FALSE),
           textInput(ns("table_title"), "表格标题", value = "秩和检验结果"),
-          textInput(ns("ftnote"), "底注", value = "")
+          textInput(ns("ftnote"), "表格底注", value = "")
             )
   )
 }
@@ -194,11 +194,11 @@ mod_c_srt_server <- function(id, data_upload_module){
 
               #
             list(
-              data_cond =  if (!is.null(data_upload_module()$filter_text) &&
+              data_cond <- if (!is.null(data_upload_module()$filter_text) &&
                                data_upload_module()$filter_text != "") {
-                paste0(data_upload_module()$data_name, "|", data_upload_module()$filter_text)
+                data_upload_module()$filter_text
               } else {
-                paste0(data_upload_module()$data_name, "|FAS=='是' & visit=='用药后 18 周±3 天' & sptest=='腺体萎缩病理组织学分级'")
+                "TRUE"  # 默认选择所有行
               },
               varlist = varlist,
               group_c = group_cond_text,

@@ -33,4 +33,15 @@ app_server <- function(input, output, session) {
   session$userData$getAnalysisType <- getAnalysisType
   session$userData$trigger_example_data <- triggerExampleData
 
+  # -------------监听数据上传模块的变化 test-------------
+  observe({
+    data_info <- data_upload()
+    message("=== 主服务器监听数据变化 ===")
+    message("数据模块返回值是否为NULL: ", is.null(data_info))
+    if (!is.null(data_info)) {
+      message("可用数据元素: ", paste(names(data_info), collapse = ", "))
+    }
+  })
+  # ----------------------------------  test-------------
+
 }

@@ -87,8 +87,8 @@ mod_data_filter_ui <- function(id,type, show_apply_button = TRUE) {
         # 条件关系选择
         fluidRow(
           column(12,
-                 selectInput(ns("condition_relation"), "条件关系",
-                             choices = c("并且 (AND)" = "AND", "或者 (OR)" = "OR"),
+                 selectInput(ns("condition_relation"), "逻辑运算符",
+                             choices = c("并且" = "AND", "或者" = "OR"),
                              selected = "AND"),
                  style = "margin-top: 10px;"
           )

@@ -49,7 +49,7 @@
 
 
 
-c_srt <- function(data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_between,test_in,table_title,ftnote)
+c_srt <- function(data, data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_between,test_in,table_title,ftnote)
 {
   # library(readxl)
   # library(dplyr)
@@ -65,6 +65,11 @@ c_srt <- function(data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_betwe
 
 
   ##################################################
+    # 如果 data_cond 为空或无效，以及使用示例数据进行分析，使用 TRUE 条件（选择所有数据）
+    if (is.null(data_cond) || data_cond == "" || is.na(data_cond)) {
+      data_cond <- "TRUE"  # 选择所有行
+    }
+
     grp_part <-  unlist(strsplit(group_c, "|", fixed = TRUE))
 
     grpvar_ <-  grp_part[1]
@@ -129,12 +134,13 @@ c_srt <- function(data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_betwe
     cat_999 <- list(catlabel_ = '合计',catorder_=999)
     cat_ <- rbind(cat_,cat_999)
 
-    data_cond_part <- unlist(strsplit(data_cond,"|",fixed = TRUE))
+    # data_cond_part <- unlist(strsplit(data_cond,"|",fixed = TRUE))
+    #
+    # data_n_ <- data_cond_part[1]
+    cond_n_ <- data_cond
 
-    data_n_ <- data_cond_part[1]
-    cond_n_ <- data_cond_part[2]
-
-    data_0 <- get(data_n_)
+    # data_0 <- get(data_n_)
+    data_0 <- data
     cond_n_ <- rlang::parse_expr(cond_n_)
     data_0 <- data_0  %>%
       dplyr::filter(!!cond_n_) #根据条件筛选出数据框

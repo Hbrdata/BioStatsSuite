@@ -92,6 +92,29 @@ mod_analyze_server <- function(id, data_upload_module) {
     lifetest_params <- mod_lifetest_server("lifetest_1", data_upload_module)
 
     observeEvent(input$run, {
+      # -------------
+      message("=== 分析模块调试信息 ===")
+      message("点击运行分析时间: ", Sys.time())
+
+      # 检查数据上传模块的返回值
+      data_info <- data_upload_module()
+      message("data_upload_module()是否为NULL: ", is.null(data_info))
+
+      if (!is.null(data_info)) {
+        message("data_info中的元素: ", paste(names(data_info), collapse = ", "))
+        message("current_data是否为NULL: ", is.null(data_info$current_data))
+        if (!is.null(data_info$current_data)) {
+          message("current_data维度: ", nrow(data_info$current_data), " x ", ncol(data_info$current_data))
+          message("current_data列名: ", paste(names(data_info$current_data), collapse = ", "))
+        }
+        message("data_name: ", data_info$data_name)
+        message("is_filtered: ", data_info$is_filtered)
+      }
+      # -------------
+
+
+
+
       req(data_upload_module()$current_data)
       req(data_upload_module()$data_name)
       req(input$analysis_type)
@@ -109,31 +132,31 @@ mod_analyze_server <- function(id, data_upload_module) {
         analysis_func <- switch(input$analysis_type,
                                 "q_describe" = function() {
                                   params <- q_describe_params()
-                                  do.call(q_describe, c(list(data_name = data_name), params))
+                                  do.call(q_describe, c(list(data = current_data), params))
                                 },
                                 "c_describe" = function() {
                                   params <- c_describe_params()
-                                  do.call(c_describe, params)
+                                  do.call(c_describe, c(list(data = current_data), params))
                                 },
                                 "c_srt" = function() {
                                   params <- c_srt_params()
-                                  do.call(c_srt, params)
+                                  do.call(c_srt, c(list(data = current_data), params))
                                 },
                                 "covancova" = function() {
                                   params <- covancova_params()
-                                  do.call(covancova, params)
+                                  do.call(covancova, c(list(data = current_data), params))
                                 },
                                 "q_param" = function() {
                                   params <- q_param_params()
-                                  do.call(q_param, params)
+                                  do.call(q_param, c(list(data = current_data), params))
                                 },
                                 "crosstable" = function() {
                                   params <- crosstable_params()
-                                  do.call(c_crosstable, params)
+                                  do.call(c_crosstable, c(list(data = current_data), params))
                                 },
                                 "lifetest" = function() {
                                   params <- lifetest_params()
-                                  do.call(lifetest, params)
+                                  do.call(lifetest, c(list(data = current_data), params))
                                 }
         )
 
@@ -162,6 +185,13 @@ mod_analyze_server <- function(id, data_upload_module) {
         }
 
       }, error = function(e) {
+
+        # -----------------------------------
+        message("分析错误详情: ", e$message)
+        message("错误调用栈:")
+        print(traceback())
+        # -----------------------------------
+
         showNotification(paste("分析错误:", e$message), type = "error")
       })
     })

@@ -82,7 +82,7 @@ mod_crosstable_ui <- function(id) {
                 width = "100%"),
 
       # 底注
-      textInput(ns("footnote"), "底注",
+      textInput(ns("footnote"), "表格底注",
                 value = "",
                 placeholder = "输入表格底注",
                 width = "100%")
@@ -170,9 +170,9 @@ mod_crosstable_server <- function(id, data_upload_module){
       # 构建数据条件
       data_cond <- if (!is.null(data_upload_module()$filter_text) &&
                        data_upload_module()$filter_text != "") {
-        paste0(data_upload_module()$data_name, "|", data_upload_module()$filter_text)
+        data_upload_module()$filter_text
       } else {
-        paste0(data_upload_module()$data_name, "|RANDYN=='是' & SS=='是' & visitnum=='2' & lbtest=='白细胞数'")
+        "TRUE"  # 默认选择所有行
       }
 
       # 构建分组条件
