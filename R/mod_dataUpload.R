@@ -482,14 +482,15 @@ mod_dataUpload_server <- function(id){
 
       DT::datatable(
         rv$current_data,
+        style="default",
         options = list(
           scrollX = TRUE,
           pageLength = 10,
-          lengthMenu = c(5, 10, 15, 20),
-          dom = 'ltip'
+          lengthMenu = c(5, 10, 15, 20)
         ),
         rownames = FALSE,
         selection = 'none'
+        # ,editable = TRUE
       )
     })
 

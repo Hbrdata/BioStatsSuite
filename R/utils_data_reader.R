@@ -33,6 +33,7 @@ extract_data_from_rda <- function(file_path) {
 }
 
 #' Read data file based on file extension
+#' @importFrom utils read.csv
 #'
 #' @param file_path Path to the file
 #' @param file_name Name of the file
