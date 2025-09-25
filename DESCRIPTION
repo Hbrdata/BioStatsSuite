@@ -29,7 +29,8 @@ Imports:
     survival,
     table1,
     tidyr,
-    tools
+    tools,
+    utils
 Suggests: 
     afex,
     kableExtra,
