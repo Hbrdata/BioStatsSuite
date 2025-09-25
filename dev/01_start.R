@@ -36,7 +36,7 @@ golem::fill_desc(
 ## Add shinydashboard to DESCRIPTION ----
 usethis::use_package("shinydashboard")
 usethis::use_package("shiny")
-usethis::use_package("shinyjs")
+# usethis::use_package("shinyjs")
 usethis::use_package("DT")
 
 ## Install the required dev dependencies ----
@@ -51,7 +51,7 @@ devtools::build_readme()
 # If your {usethis} version is older, you can remove that param
 usethis::use_code_of_conduct(contact = "Golem User")
 usethis::use_lifecycle_badge("Experimental")
-usethis::use_news_md(open = FALSE)
+# usethis::use_news_md(open = FALSE)
 
 ## Init Testing Infrastructure ----
 ## Create a template for tests

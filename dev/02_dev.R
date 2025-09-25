@@ -35,10 +35,14 @@ usethis::use_package("magrittr")
 
 
 
-## Add modules ----
-## Create a module infrastructure in R/
-golem::add_module(name = "name_of_module1", with_test = TRUE) # Name of the module
-golem::add_module(name = "name_of_module2", with_test = TRUE) # Name of the module
+## Add internal datasets ---- not run
+## If you have data in your package
+usethis::use_data_raw( name = "adsl", open = TRUE ) # ran
+usethis::use_data_raw( name = "tyypspa", open = FALSE ) # ran
+usethis::use_data_raw( name = "cov_adur", open = FALSE ) # ran
+usethis::use_data_raw( name = "adts", open = FALSE ) # ran
+usethis::use_data_raw( name = "adcrslb", open = FALSE ) # ran
+usethis::use_data_raw( name = "adhj", open = FALSE ) # ran
 
 # 界面模块
 golem::add_module(name = "dataUpload") # Name of the module
@@ -56,7 +60,8 @@ golem::add_module(name = "lifetest") # Name of the module
 golem::add_fct("helpers", with_test = TRUE)
 golem::add_utils("helpers", with_test = TRUE)
 
-
+# 上传模块
+golem::add_utils("data_reader")
 # 统计分析函数
 golem::add_utils("q_describe")
 golem::add_utils("c_describe")
