@@ -45,7 +45,7 @@
 
 
 
-c_describe <- function(data, data_cond,denominator_cond,varlist,group_c,coltotal,rowtotal,outyn=1,table_title,ftnote)
+c_describe <- function(inds, data_cond,denominator_cond,varlist,group_c,coltotal,rowtotal,outyn=1,table_title,ftnote)
 {
 
   grp_part <-  unlist(strsplit(group_c, "|", fixed = TRUE))
@@ -110,8 +110,7 @@ c_describe <- function(data, data_cond,denominator_cond,varlist,group_c,coltotal
 
   cond_n_ <- data_cond
 
- # data_0 <- get(data_n_)
-  data_0 <- data
+  data_0 <- inds
   cond_n_ <- rlang::parse_expr(cond_n_)
   data_0 <- data_0  %>%
     dplyr::filter(!!cond_n_) #根据条件筛选出数据框
@@ -197,15 +196,11 @@ c_describe <- function(data, data_cond,denominator_cond,varlist,group_c,coltotal
     dplyr::mutate(
       n999_ = if_else(!is.na(BREAK_) , n999_-grp_num, n999_),
     )
-  #RShiny中不再拆分条件，去掉data部分
-  # denominator_cond_part <- unlist(strsplit(denominator_cond,"|",fixed = TRUE))
 
-  # data_d_ <- denominator_cond_part[1]
-  # cond_d_ <- denominator_cond_part[2]
   cond_d_ <- denominator_cond
 
-  # data_1 <- get(data_d_)
-  data_1 <- data
+
+  data_1 <- inds
   cond_d_ <- rlang::parse_expr(cond_d_)
   data_1 <- data_1  %>%
     dplyr::filter(!!cond_d_) #根据条件筛选出数据框

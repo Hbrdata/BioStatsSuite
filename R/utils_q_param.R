@@ -44,7 +44,7 @@
 
 
 
-q_param<-function(data, data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,outyn=1,test_between,title,footnote)
+q_param<-function(inds, data_cond ,denominator_cond, group_c, varlist, rowtotal,pairt,outyn=1,test_between,title,footnote)
 {
 
 
@@ -76,7 +76,7 @@ q_param<-function(data, data_cond ,denominator_cond, group_c, varlist, rowtotal,
   ##############根据条件创建数据框###########
   cond_n_ <- data_cond
 
-  data_0 <- data
+  data_0 <- inds
   cond_n_ <- parse_expr(cond_n_)
   data_0 <- data_0  %>%
     dplyr::filter(!!cond_n_) #根据条件筛选出数据框
@@ -111,8 +111,8 @@ q_param<-function(data, data_cond ,denominator_cond, group_c, varlist, rowtotal,
   # data_n_title <- data_cond_part_title[1]
   cond_n_title <- denominator_cond
 
-  # data_1 <- get(data_n_title)
-  data_1 <- data
+
+  data_1 <- inds
   cond_n_title <- rlang::parse_expr(cond_n_title)
   data_1 <- data_1  %>%
     dplyr::filter(!!cond_n_title) #根据条件筛选出数据框

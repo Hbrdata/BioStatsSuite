@@ -45,7 +45,7 @@
 
 
 
-lifetest <- function(data,data_cond,group_c,censor,time_label,timelist,type,topleftlabel,title,footnote)
+lifetest <- function(inds,data_cond,group_c,censor,time_label,timelist,type,topleftlabel,title,footnote)
 {
   ################## 拆分组别、分析变量 ################################
 
@@ -77,7 +77,7 @@ lifetest <- function(data,data_cond,group_c,censor,time_label,timelist,type,topl
   cond_ <- data_cond
 
 
-  data_0 <- data
+  data_0 <- inds
   data_0 <- data_0 %>%
     dplyr::filter(!!rlang::parse_expr(cond_))
   group_cond <- c(grpnames_)

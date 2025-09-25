@@ -132,31 +132,31 @@ mod_analyze_server <- function(id, data_upload_module) {
         analysis_func <- switch(input$analysis_type,
                                 "q_describe" = function() {
                                   params <- q_describe_params()
-                                  do.call(q_describe, c(list(data = current_data), params))
+                                  do.call(q_describe, c(list(inds = current_data), params))
                                 },
                                 "c_describe" = function() {
                                   params <- c_describe_params()
-                                  do.call(c_describe, c(list(data = current_data), params))
+                                  do.call(c_describe, c(list(inds = current_data), params))
                                 },
                                 "c_srt" = function() {
                                   params <- c_srt_params()
-                                  do.call(c_srt, c(list(data = current_data), params))
+                                  do.call(c_srt, c(list(inds = current_data), params))
                                 },
                                 "covancova" = function() {
                                   params <- covancova_params()
-                                  do.call(covancova, c(list(data = current_data), params))
+                                  do.call(covancova, c(list(inds = current_data), params))
                                 },
                                 "q_param" = function() {
                                   params <- q_param_params()
-                                  do.call(q_param, c(list(data = current_data), params))
+                                  do.call(q_param, c(list(inds = current_data), params))
                                 },
                                 "crosstable" = function() {
                                   params <- crosstable_params()
-                                  do.call(c_crosstable, c(list(data = current_data), params))
+                                  do.call(c_crosstable, c(list(inds = current_data), params))
                                 },
                                 "lifetest" = function() {
                                   params <- lifetest_params()
-                                  do.call(lifetest, c(list(data = current_data), params))
+                                  do.call(lifetest, c(list(inds = current_data), params))
                                 }
         )
 

@@ -152,19 +152,42 @@ mod_dataUpload_server <- function(id){
       denominator_filter_text = "",
       file_type = NULL,
       example_data_loaded = FALSE,
-      current_analysis_type = NULL
+      current_analysis_type = NULL,
+      previous_analysis_type = NULL
     )
 
     # 监听分析类型变化
     observe({
       analysis_type <- getAnalysisType()
       if (!is.null(analysis_type)) {
+        rv$previous_analysis_type <- rv$current_analysis_type
         rv$current_analysis_type <- analysis_type
       }
     })
 
+        # 检查是否需要提示清空数据的函数
+    check_analysis_type_changed <- function() {
+      # 如果之前有分析类型，且分析类型发生了变化，并且当前有数据
+      if (!is.null(rv$previous_analysis_type) &&
+          !is.null(rv$current_analysis_type) &&
+          rv$previous_analysis_type != rv$current_analysis_type &&
+          !is.null(rv$raw_data)) {
+        return(TRUE)
+      }
+      return(FALSE)
+    }
+
+
+
     # 加载示例数据的函数
     load_example_data_wrapper <- function() {
+      # 检查分析类型是否发生变化且当前有数据
+      if (check_analysis_type_changed()) {
+        showNotification("分析类型已变更，请先清空当前上传的数据再加载新示例数据",
+                         type = "warning", duration = 5)
+        return()
+      }
+
       if (is.null(rv$raw_data) && !rv$example_data_loaded) {
         analysis_type <- rv$current_analysis_type
 
@@ -183,10 +206,10 @@ mod_dataUpload_server <- function(id){
           rv$filter_text <- ""
           rv$denominator_filter_text <- ""
           rv$data_name <- result$data_name
-          rv$file_type <- result$file_type
+          rv$file_type <- NULL  # 示例数据不再需要file_type
           rv$example_data_loaded <- TRUE
 
-          updateTextInput(session, "data_name", value = result$data_name)
+          # updateTextInput(session, "data_name", value = result$data_name)
           showNotification(paste("示例数据加载成功！(", result$data_name, ")", sep = ""), type = "message")
 
           message("Example data loaded successfully for analysis: ", analysis_type)
@@ -196,6 +219,10 @@ mod_dataUpload_server <- function(id){
         } else if (!is.null(result)) {
           showNotification(paste("加载示例数据错误:", result$error_message), type = "error")
         }
+      } else if (!is.null(rv$raw_data)) {
+        # 如果已经有数据，提示用户
+        showNotification("当前已有上传数据，请先清空数据再加载示例数据",
+                         type = "warning", duration = 3)
       }
     }
 
@@ -368,6 +395,7 @@ mod_dataUpload_server <- function(id){
       rv$file_type <- NULL
       rv$example_data_loaded <- FALSE
       rv$current_data_category <- NULL
+      rv$previous_analysis_type <- NULL
 
       # 重置文件输入框的显示
       reset_file_input_ui()

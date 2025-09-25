@@ -49,7 +49,7 @@
 
 
 
-c_srt <- function(data, data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_between,test_in,table_title,ftnote)
+c_srt <- function(inds, data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test_between,test_in,table_title,ftnote)
 {
   # library(readxl)
   # library(dplyr)
@@ -140,7 +140,7 @@ c_srt <- function(data, data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test
     cond_n_ <- data_cond
 
     # data_0 <- get(data_n_)
-    data_0 <- data
+    data_0 <- inds
     cond_n_ <- rlang::parse_expr(cond_n_)
     data_0 <- data_0  %>%
       dplyr::filter(!!cond_n_) #根据条件筛选出数据框

@@ -2,7 +2,7 @@
 #'
 #' @description A utils function for descriptive statistics of continuous variables
 #'
-#' @param data Object of the data frame
+#' @param inds Object of the data frame
 #' @param data_cond Data filtering condition
 #' @param var_name Variable name for analysis
 #' @param var_label Variable label
@@ -38,7 +38,7 @@
 
 
 
-q_describe<-function(data,data_cond,var_name,var_label,group_name,group_cond,table_title,ftnote,totalyn,outyn=1)
+q_describe<-function(inds,data_cond,var_name,var_label,group_name,group_cond,table_title,ftnote,totalyn,outyn=1)
 {
 
   ##############根据条件创建数据框###########
@@ -59,7 +59,7 @@ q_describe<-function(data,data_cond,var_name,var_label,group_name,group_cond,tab
   }
 
   ##############根据条件创建数据框###########
-  data_0 <- data  # 直接使用传入的数据框
+  data_0 <- inds
 
 
     data_cond_0 <- rlang::parse_expr(data_cond)
@@ -68,16 +68,6 @@ q_describe<-function(data,data_cond,var_name,var_label,group_name,group_cond,tab
     data_0 <- data_0  %>%
       dplyr::filter(!!data_cond_0) #根据条件筛选出数据框
 
-
-  # # 检查分组变量是否存在
-  # if (!group_name %in% names(data_0)) {
-  #   stop(paste("分组变量", group_name, "在数据集中不存在"))
-  # }
-  #
-  # # 检查分析变量是否存在
-  # if (!var_name %in% names(data_0)) {
-  #   stop(paste("分析变量", var_name, "在数据集中不存在"))
-  # }
 
   data_0 <- data_0 %>%
     dplyr::filter(.data[[group_name]] %in% group_cond )
