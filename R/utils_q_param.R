@@ -127,7 +127,7 @@ q_param<-function(inds, data_cond ,denominator_cond, group_c, varlist, rowtotal,
   d_1 <- stats::setNames(d_1,c("var_0","group_0"))
   d_1$grpcd_ <- NA
 
-  for (i in 1:nrow(d_0)){
+  for (i in 1:nrow(d_1)){
     for (s_ in 1:grp_num) {
       if (d_1$group_0[i] == cat_grpname[[s_]]){
         d_1$grpcd_[i] <-s_
@@ -142,7 +142,7 @@ q_param<-function(inds, data_cond ,denominator_cond, group_c, varlist, rowtotal,
 
   title_0 <- d_1 %>%
     dplyr::group_by(group_0) %>%
-    # filter(group_0 %in% group_cond) %>%  # 使用filter挑选分组
+    dplyr::filter(group_0 %in% group_cond) %>%  # 使用filter挑选分组
     dplyr::summarise(
       n = dplyr::n() # 计数每个组的观测值数量
     )
@@ -187,6 +187,7 @@ q_param<-function(inds, data_cond ,denominator_cond, group_c, varlist, rowtotal,
 
   s_0 <- d_0 %>%
     dplyr::group_by(group_0) %>%
+    dplyr::filter(group_0 %in% group_cond) %>%  # 使用filter挑选分组
     dplyr::summarise(
       mean = sprintf('%.2f',mean(var_0, na.rm = TRUE)),  #na.rm=TRUE 表示对于数据中的NA值，确保函数在计算时值考虑非缺失值，得到一个
       #基于有效数据的统计结果
@@ -207,7 +208,7 @@ q_param<-function(inds, data_cond ,denominator_cond, group_c, varlist, rowtotal,
 
   #总计列
 
-  s_1 <- d_0 %>%
+  s_1 <- d_1 %>%
     dplyr::summarise(
       group_0 = '合计',
       mean = sprintf('%.2f',mean(var_0, na.rm = TRUE)),  #na.rm=TRUE 表示对于数据中的NA值，确保函数在计算时值考虑非缺失值，得到一个

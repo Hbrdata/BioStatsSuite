@@ -165,7 +165,8 @@ mod_data_filter_server <- function(id, data_upload_module) {
       condition_relations = list(),    # 存储条件之间的关系
       current_filter_text = "",        # 完整的筛选表达式
       condition_count = 0,
-      last_reset_trigger = 0  # 记录上次的重置信号
+      last_reset_trigger = 0,  # 记录上次的重置信号
+      last_data_update_trigger = 0  # 🟢 新增：记录上次的数据更新信号
     )
 
     # 初始化当前筛选条件显示模块

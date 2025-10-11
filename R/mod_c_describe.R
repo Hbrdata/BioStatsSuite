@@ -18,7 +18,7 @@ mod_c_describe_ui <- function(id) {
       # 分析变量选择
       tags$div(
         style = "margin-bottom: 15px;",
-        selectizeInput(ns("c_var_name"), "分析变量",
+        selectizeInput(ns("var_name"), "分析变量",
                        choices = NULL,
                        multiple = FALSE,
                        options = list(placeholder = '选择要分析的变量',
@@ -26,19 +26,19 @@ mod_c_describe_ui <- function(id) {
       ),
 
       # 变量标签
-      textInput(ns("c_var_label"), "变量标签", value = "",
-                placeholder = "例如: 性别, 种族, 地区",
+      textInput(ns("var_label"), "变量标签", value = "",
+                placeholder = "定义分析变量展示标签",
                 width = "100%"),
 
       # 变量映射
-      textInput(ns("c_var_mapping"), "变量映射", value = "",
-                placeholder = "例如: '男'=男/'女'=女 或 1=是/0=否",
+      textInput(ns("var_mapping"), "变量映射", value = "",
+                placeholder = "格式为:变量值1=变量值标签1/变量值2=变量值标签2/...",
                 width = "100%"),
 
       # 分组变量选择
       tags$div(
         style = "margin-bottom: 15px;",
-        selectizeInput(ns("c_group_var"), "分组变量",
+        selectizeInput(ns("group_var"), "分组变量",
                        choices = NULL,
                        multiple = FALSE,
                        options = list(placeholder = '选择分组变量'))
@@ -47,34 +47,38 @@ mod_c_describe_ui <- function(id) {
       # 分组条件选择
       tags$div(
         style = "margin-bottom: 15px;",
-        selectizeInput(ns("c_group_cond"), "分组条件",
+        selectizeInput(ns("group_cond"), "分组条件",
                        choices = NULL,
                        multiple = TRUE,
-                       options = list(placeholder = '选择分组条件（可多选）',
-                                      maxItems = 10,
-                                      plugins = list('remove_button'),
-                                      create = FALSE,
-                                      persist = FALSE))
+                       options = list(
+                         placeholder = '选择分组条件（可多选）',
+                         maxItems = 10,
+                         plugins = list('remove_button'),
+                         create = FALSE
+                       )
+        ),
+        tags$small(icon("info-circle"), "选择分组变量后，此处会自动显示可选项",
+                   style = "color: #6c757d; font-size: 12px;")
       ),
 
       # 显示选项
       fluidRow(
         column(6,
-               checkboxInput(ns("c_coltotal"), "显示列合计", value = TRUE)
+               checkboxInput(ns("coltotal"), "显示列合计", value = TRUE)
         ),
         column(6,
-               checkboxInput(ns("c_rowtotal"), "显示行合计", value = TRUE)
+               checkboxInput(ns("rowtotal"), "显示行合计", value = TRUE)
         )
       ),
 
       # 表格标题
-      textInput(ns("c_table_title"), "表格标题",
+      textInput(ns("table_title"), "表格标题",
                 value = "分类变量描述表",
                 placeholder = "输入表格标题",
                 width = "100%"),
 
       # 底注
-      textInput(ns("c_ftnote"), "表格底注",
+      textInput(ns("ftnote"), "表格底注",
                 value = "",
                 placeholder = "输入表格底注",
                 width = "100%")
@@ -85,9 +89,18 @@ mod_c_describe_ui <- function(id) {
 #' c_describe Server Functions
 #'
 #' @noRd
-mod_c_describe_server <- function(id, data_upload_module) {
-  moduleServer(id, function(input, output, session) {
+mod_c_describe_server <- function(id, data_upload_module){
+  moduleServer(id, function(input, output, session){
     ns <- session$ns
+
+    # 🟢 使用响应式值跟踪数据和分析类型状态
+    rv <- reactiveValues(
+      last_data_hash = NULL,
+      last_analysis_type = NULL,
+      init_done = FALSE,
+      clearing_params = FALSE,
+      params_cleared = FALSE
+    )
 
     # 检查是否有数据
     output$has_data <- reactive({
@@ -95,35 +108,139 @@ mod_c_describe_server <- function(id, data_upload_module) {
     })
     outputOptions(output, "has_data", suspendWhenHidden = FALSE)
 
+    # 🟢 清空参数的方法
+    clear_parameters <- function() {
+      message("🧹 清空分类变量描述参数")
 
-    # 更新变量选择列表
+      # 设置清空参数标志
+      rv$clearing_params <- TRUE
+
+
+      # 清空所有选择输入
+      updateSelectizeInput(session, "var_name", selected = "")
+      updateSelectizeInput(session, "group_var", selected = "")
+      updateSelectizeInput(session, "group_cond", selected = "")
+
+      # 清空文本输入
+      updateTextInput(session, "var_label", value = "")
+      updateTextInput(session, "var_mapping", value = "")
+      updateTextInput(session, "table_title", value = "分类变量描述表")
+      updateTextInput(session, "ftnote", value = "")
+
+      # 重置复选框
+      updateCheckboxInput(session, "coltotal", value = TRUE)
+      updateCheckboxInput(session, "rowtotal", value = TRUE)
+
+      # 重置初始化状态
+      rv$init_done = FALSE
+      rv$last_data_hash = NULL
+      rv$last_analysis_type = NULL
+
+      # 延迟重置清空参数标志
+      shinyjs::delay(500, {
+        rv$clearing_params = FALSE
+        message("✅ 清空参数完成，重置标志")
+      })
+
+      message("✅ 分类变量描述参数已清空")
+      return(TRUE)
+    }
+
+    # 🟢 修复：改进的数据初始化观察器 - 只在有数据时初始化，不自动清空参数
     observe({
-      req(data_upload_module()$current_data)
-      current_data <- data_upload_module()$current_data
+      # 如果正在清空参数，跳过初始化
+      if (rv$clearing_params) {
+        message("⏸️ 正在清空参数，跳过初始化")
+        return()
+      }
 
-      if (!is.null(current_data) && nrow(current_data) > 0 && ncol(current_data) > 0) {
-        vars <- names(current_data)
+      # 只有当有数据时才进行初始化
+      if (!is.null(data_upload_module()$current_data) &&
+          !is.null(data_upload_module()$current_analysis_type)) {
 
-        # 更新分析变量选择
-        updateSelectizeInput(session, "c_var_name",
-                             choices = vars,
-                             server = TRUE,
-                             selected = ifelse(length(vars) > 0, vars[1], ""),
-                             options = list(placeholder = '选择分析变量'))
+        current_data <- data_upload_module()$current_data
+        current_analysis_type <- data_upload_module()$current_analysis_type
 
-        # 更新分组变量选择
-        updateSelectizeInput(session, "c_group_var",
-                             choices = vars,
-                             server = TRUE,
-                             options = list(placeholder = '选择分组变量'))
+        # 生成数据哈希
+        current_data_hash <- digest::digest(list(
+          dim(current_data),
+          names(current_data),
+          current_analysis_type
+        ))
+
+        # 检查是否需要重新初始化
+        needs_reinit <- FALSE
+
+        if (!identical(current_data_hash, rv$last_data_hash)) {
+          message("📊 检测到数据变化，需要重新初始化")
+          needs_reinit <- TRUE
+        }
+
+        if (!identical(current_analysis_type, rv$last_analysis_type)) {
+          message("🔄 检测到分析类型变化，需要重新初始化")
+          needs_reinit <- TRUE
+        }
+
+        if (!rv$init_done) {
+          message("⚙️ 首次初始化")
+          needs_reinit <- TRUE
+        }
+
+        if (needs_reinit && nrow(current_data) > 0) {
+          vars <- names(current_data)
+
+          # 更新变量选项
+          updateSelectizeInput(session, "var_name", choices = vars, selected = "")
+          updateSelectizeInput(session, "group_var", choices = vars, selected = "")
+          updateSelectizeInput(session, "group_cond", choices = character(0), selected = "")
+
+          # 🟢 修复：只有当是分类变量描述、数据包含特定变量时才设置默认值
+          if (current_analysis_type == "c_describe" && all(c("sex", "arm3") %in% vars)) {
+            message("🎯 设置分类变量描述默认变量...")
+            updateSelectizeInput(session, "var_name", selected = "sex")
+            updateTextInput(session, "var_label", value = "性别")
+            updateTextInput(session, "var_mapping", value = "男=男/女=女")
+            updateSelectizeInput(session, "group_var", selected = "arm3")
+
+            # 自动设置分组条件
+            if ("arm3" %in% names(current_data)) {
+              unique_groups <- unique(na.omit(current_data[["arm3"]]))
+              updateSelectizeInput(session, "group_cond",
+                                   choices = as.character(unique_groups),
+                                   selected = as.character(unique_groups))
+            }
+          }
+
+          # 更新状态跟踪
+          rv$last_data_hash <- current_data_hash
+          rv$last_analysis_type <- current_analysis_type
+          rv$init_done <- TRUE
+
+          message("✅ 初始化完成，分析类型: ", current_analysis_type)
+        }
+      } else {
+        # 🟢 修改：数据为空时，只更新状态，不清空参数输入
+        if (rv$init_done) {
+          message("📭 数据为空，但保持参数不变（等待用户明确清空）")
+          # 只重置初始化状态，不清空输入
+          rv$init_done <- FALSE
+          rv$last_data_hash <- NULL
+          rv$last_analysis_type <- NULL
+        }
       }
     })
 
     # 监听分组变量变化，更新分组条件选项
     observe({
-      req(input$c_group_var, data_upload_module()$current_data)
+      req(input$group_var, data_upload_module()$current_data, rv$init_done)
+
+      # 如果正在清空参数，跳过
+      if (rv$clearing_params) {
+        return()
+      }
+
       current_data <- data_upload_module()$current_data
-      group_var <- input$c_group_var
+      group_var <- input$group_var
 
       if (group_var %in% names(current_data)) {
         # 获取分组变量的唯一值
@@ -131,105 +248,130 @@ mod_c_describe_server <- function(id, data_upload_module) {
         unique_values <- sort(unique_values)
 
         # 更新分组条件选择
-        updateSelectizeInput(session, "c_group_cond",
-                             choices = as.character(unique_values),
-                             selected = input$c_group_cond,
-                             options = list(placeholder = '选择分组条件',
-                                            maxItems = 10))
+        updateSelectizeInput(
+          session,
+          "group_cond",
+          choices = as.character(unique_values),
+          selected = character(0),  # 清空当前选择
+          options = list(
+            placeholder = '选择分组条件',
+            maxItems = 10,
+            plugins = list('remove_button')
+          )
+        )
       }
     })
 
-    # 自动填充变量标签
+    # 🟢 修复：自动填充变量标签（在数据初始化后执行）
     observe({
-      req(input$c_var_name)
-      var_name <- input$c_var_name
+      req(input$var_name, rv$init_done)
 
-      # 这里可以添加一些常见的变量标签映射
-      label_mapping <- list(
-        "sex" = "性别",
-        "gender" = "性别",
-        "race" = "种族",
-        "age" = "年龄",
-        "trt" = "治疗组",
-        "arm" = "治疗分组",
-        "country" = "国家"
-      )
-
-      if (var_name %in% names(label_mapping)) {
-        updateTextInput(session, "c_var_label", value = label_mapping[[var_name]])
-      } else if (input$c_var_label == "") {
-        updateTextInput(session, "c_var_label", value = var_name)
+      if (rv$clearing_params) {
+        return()
       }
-    })
 
-    # 自动填充变量映射
-    observe({
-      req(input$c_var_name, data_upload_module()$current_data)
-      var_name <- input$c_var_name
-      current_data <- data_upload_module()$current_data
+      if (input$var_label == "") {
+        label_mapping <- list(
+          "sex" = "性别",
+          "SEX" = "性别",
+          "GENDER" = "性别",
+          "RACE" = "种族",
+          "ETHNIC" = "民族"
+        )
 
-      if (var_name %in% names(current_data)) {
-        unique_values <- unique(na.omit(current_data[[var_name]]))
-        if (length(unique_values) <= 10) {  # 只对分类变量自动生成映射
-          mapping <- paste(sapply(unique_values, function(x) {
-            paste0("'", x, "'=", x)
-          }), collapse = "/")
-          updateTextInput(session, "c_var_mapping", value = mapping)
+        if (input$var_name %in% names(label_mapping)) {
+          updateTextInput(session, "var_label", value = label_mapping[[input$var_name]])
+        } else {
+          updateTextInput(session, "var_label", value = input$var_name)
         }
       }
     })
 
-    # 返回参数列表
-    reactive({
-      req(input$c_var_name, input$c_group_var)
+    # 🟢 修复：自动填充变量映射（在数据初始化后执行）
+    observe({
+      req(input$var_name, data_upload_module()$current_data, rv$init_done)
 
-      # # 构建数据条件（数据集名称 + 筛选条件）
-      # data_name <- data_upload_module()$data_name
-
-      # 构建数据条件（现在只包含筛选条件，不包含数据集名称）
-      data_cond <- if (!is.null(data_upload_module()$filter_text) &&
-                       data_upload_module()$filter_text != "") {
-        data_upload_module()$filter_text
-      } else {
-        "TRUE"  # 默认选择所有行
+      if (rv$clearing_params) {
+        return()
       }
 
-      # 构建分母条件（同样只包含筛选条件）
-      denominator_cond <- if (!is.null(data_upload_module()$denominator_filter_text) &&
-                              data_upload_module()$denominator_filter_text != "") {
-        data_upload_module()$denominator_filter_text
+      if (input$var_mapping == "") {
+        current_data <- data_upload_module()$current_data
+        var_name <- input$var_name
+
+        if (var_name %in% names(current_data)) {
+          unique_values <- unique(na.omit(current_data[[var_name]]))
+          if (length(unique_values) <= 5) {
+            # 自动生成映射定义
+            mapping_parts <- character()
+            for (val in sort(unique_values)) {
+              mapping_parts <- c(mapping_parts, paste0("'", val, "'=", val))
+            }
+            mapping_text <- paste(mapping_parts, collapse = "/")
+            updateTextInput(session, "var_mapping", value = mapping_text)
+          }
+        }
+      }
+    })
+
+    return(reactive({
+      # req(data_upload_module()$current_data)
+
+      # 构建分组条件字符串
+      group_cond_text <- if (!is.null(input$group_cond) && length(input$group_cond) > 0) {
+        paste0(input$group_var, "|", paste(input$group_cond, collapse = "/"))
+      } else if (!is.null(input$group_var)) {
+        # 如果没有选择具体条件，使用所有唯一值
+        current_data <- data_upload_module()$current_data
+        if (!is.null(current_data) && input$group_var %in% names(current_data)) {
+          unique_values <- unique(na.omit(current_data[[input$group_var]]))
+          paste0(input$group_var, "|", paste(sort(unique_values), collapse = "/"))
+        } else {
+          input$group_var
+        }
       } else {
-        "TRUE"  # 默认选择所有行
+        ""
       }
 
-      # 构建变量列表
-      varlist <- if (!is.null(input$c_var_mapping) && input$c_var_mapping != "") {
-        paste(input$c_var_name, input$c_var_label, input$c_var_mapping, sep = "|")
+      # 构建变量列表字符串
+      varlist_text <- if (!is.null(input$var_label) && input$var_label != "") {
+        if (!is.null(input$var_mapping) && input$var_mapping != "") {
+          paste0(input$var_name, "|", input$var_label, "|", input$var_mapping)
+        } else {
+          paste0(input$var_name, "|", input$var_label)
+        }
       } else {
-        paste(input$c_var_name, input$c_var_label, "", sep = "|")
-      }
-
-      # 构建分组变量
-      group_c <- if (!is.null(input$c_group_cond) && length(input$c_group_cond) > 0) {
-        paste(input$c_group_var, paste(input$c_group_cond, collapse = "/"), sep = "|")
-      } else {
-        input$c_group_var
+        input$var_name
       }
 
       list(
-        data_cond = data_cond,
-        denominator_cond = denominator_cond,
-        varlist = varlist,
-        group_c = group_c,
-        coltotal = as.integer(input$c_coltotal),
-        rowtotal = as.integer(input$c_rowtotal),
+        data_cond = if (!is.null(data_upload_module()$filter_text) &&
+                        data_upload_module()$filter_text != "") {
+          data_upload_module()$filter_text
+        } else {
+          "TRUE"
+        },
+        denominator_cond = if (!is.null(data_upload_module()$denominator_filter_text) &&
+                               data_upload_module()$denominator_filter_text != "") {
+          data_upload_module()$denominator_filter_text
+        } else {
+          "TRUE"
+        },
+        varlist = varlist_text,
+        group_c = group_cond_text,
+        coltotal = as.integer(input$coltotal),
+        rowtotal = as.integer(input$rowtotal),
         outyn = 1,
-        table_title = input$c_table_title,
-        ftnote = input$c_ftnote
+        table_title = input$table_title,
+        ftnote = input$ftnote,
+
+        # 🟢 清空参数的方法
+        clear_params = clear_parameters
       )
-    })
+    }))
   })
 }
+
 
 ## To be copied in the UI
 # mod_c_describe_ui("c_describe_1")

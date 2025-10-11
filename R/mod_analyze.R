@@ -10,18 +10,48 @@
 mod_analyze_sidebar_ui <- function(id) {
   ns <- NS(id)
   tagList(
-    selectInput(ns("analysis_type"), "选择分析类型",
-                choices = c("描述性统计" = "q_describe",
-                            "分类变量描述" = "c_describe",
-                            "秩和检验" = "c_srt",
-                            "协方差分析" = "covancova",
-                            "组间/组内比较" = "q_param",
-                            "2*2列联表" = "crosstable",
-                            "生存分析" = "lifetest")),
+    # 分析模块 - 美化版
+    tags$div(
+      style = "border: 2px solid #e9ecef;
+               padding: 20px;
+               margin-bottom: 25px;
+               border-radius: 10px;
+               background: linear-gradient(to bottom, #ffffff, #f8f9fa);
+               box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+               transition: all 0.3s ease;",
 
-    # 条件面板
-    uiOutput(ns("analysis_params")),
-    actionButton(ns("run"), "运行分析")
+      # 模块标题
+      tags$div(
+        style = "display: flex; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #27ae60;",
+        icon("chart-bar", style = "color: #27ae60; margin-right: 10px; font-size: 18px;"),
+        h5("统计分析设置", style = "margin: 0; color: #2c3e50; font-weight: 600;")
+      ),
+
+      selectInput(ns("analysis_type"), "选择分析类型",
+                  choices = c("请选择..." = "",
+                              "描述性统计" = "q_describe",
+                              "分类变量描述" = "c_describe",
+                              "秩和检验" = "c_srt",
+                              "协方差分析" = "covancova",
+                              "组间/组内比较" = "q_param",
+                              "2*2列联表" = "crosstable",
+                              "生存分析" = "lifetest")),
+
+      # 条件面板
+      uiOutput(ns("analysis_params")),
+
+      # 操作按钮区域
+      tags$div(
+        style = "display: flex; justify-content: space-between; margin-top: 15px;",
+        actionButton(ns("run"), "运行分析",
+                     icon = icon("play-circle"),
+                     style = "background-color: #27ae60; color: white; border: none; font-weight: bold; padding: 8px 16px; border-radius: 4px; flex: 1; margin-right: 5px;"
+        ),
+        actionButton(ns("clear_params"), "清空参数",
+                     icon = icon("broom"),
+                     style = "background-color: #e74c3c; color: white; border: none; flex: 1; margin-left: 5px;")
+      )
+    )
   )
 }
 
@@ -29,21 +59,64 @@ mod_analyze_tabPanel_ui <- function(id) {
   ns <- NS(id)
 
   tabPanel("分析结果",
-           h4("分析结果"),
-           # 使用绝对定位填充整个标签页
-           div(style = "width: 100%; height: 100%; overflow: auto;",
+           # 分析结果容器 - 自适应高度
+           tags$div(
+             style = "border: 2px solid #e9ecef;
+                      padding: 20px;
+                      margin: 10px;
+                      border-radius: 10px;
+                      background: linear-gradient(to bottom, #ffffff, #f8f9fa);
+                      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                      min-height: 400px;
+                      display: flex;
+                      flex-direction: column;",
+
+             # 模块标题
+             tags$div(
+               style = "display: flex; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #27ae60; flex-shrink: 0;",
+               icon("chart-line", style = "color: #27ae60; margin-right: 10px; font-size: 18px;"),
+               h4("分析结果", style = "margin: 0; color: #2c3e50; font-weight: 600;")
+             ),
+
+             # 结果展示区域 - 完全自适应
+             tags$div(
+               id = ns("result_container"),
+               style = "flex: 1;
+                        min-height: 200px;
+                        border: 1px solid #e9ecef;
+                        border-radius: 5px;
+                        background-color: white;
+                        padding: 15px;
+                        overflow: visible;",  # 改为 visible 允许内容扩展
                uiOutput(ns("table_output"))
-           ),
-           fluidRow(
-             column(12,
-                    downloadButton(ns("download_result"), "下载结果",
-                                   class = "btn-primary",
-                                   style = "margin-bottom: 10px;")
+             ),
+
+             # 操作按钮区域 - 跟随内容
+             tags$div(
+               id = ns("button_container"),
+               style = "padding: 12px;
+                        background-color: #f8f9fa;
+                        border-radius: 5px;
+                        border: 1px solid #dee2e6;
+                        margin-top: 15px;
+                        flex-shrink: 0;",
+               fluidRow(
+                 column(12,
+                        tags$div(
+                          style = "display: flex; gap: 10px; align-items: center; justify-content: flex-start;",
+                          downloadButton(ns("download_result"), "下载结果",
+                                         class = "btn-primary",
+                                         style = "background-color: #3498db; border-color: #3498db;"),
+                          actionButton(ns("clear_result"), "清除结果",
+                                       icon = icon("trash"),
+                                       style = "background-color: #e74c3c; color: white; border: none;")
+                        )
+                 )
+               )
              )
            )
   )
 }
-
 
 #' analyze Server Functions
 #'
@@ -53,7 +126,23 @@ mod_analyze_server <- function(id, data_upload_module) {
     ns <- session$ns
     result <- reactiveVal(NULL)
 
-    # 暴露当前分析类型
+    # # 🟢 新增：定义 rv 响应式值
+    rv <- reactiveValues(
+      clearing_params = FALSE
+    )
+
+    # 创建响应式值来跟踪各个分析模块的服务器实例
+    analysis_servers <- reactiveValues(
+      q_describe = NULL,
+      c_describe = NULL,
+      c_srt = NULL,
+      covancova = NULL,
+      q_param = NULL,
+      crosstable = NULL,
+      lifetest = NULL
+    )
+
+    # 🟢 暴露当前分析类型
     current_analysis_type <- reactive({
       input$analysis_type
     })
@@ -71,6 +160,20 @@ mod_analyze_server <- function(id, data_upload_module) {
     # 动态渲染参数UI
     output$analysis_params <- renderUI({
       req(input$analysis_type)
+
+      # 如果分析类型为空或为默认选项，显示提示信息
+      if (input$analysis_type == "") {
+        return(
+          tags$div(
+            style = "text-align: center; padding: 40px; color: #6c757d;",
+            icon("hand-pointer", style = "font-size: 48px; margin-bottom: 20px;"),
+            tags$h4("请选择分析方法"),
+            tags$p("从左侧下拉菜单中选择您要使用的统计分析方法")
+          )
+        )
+      }
+
+      # 根据选择的分析类型渲染对应的UI
       switch(input$analysis_type,
              "q_describe" = mod_q_describe_ui(ns("q_describe_1")),
              "c_describe" = mod_c_describe_ui(ns("c_describe_1")),
@@ -82,6 +185,114 @@ mod_analyze_server <- function(id, data_upload_module) {
       )
     })
 
+    # 🟢 新增：初始化分析模块（延迟执行，确保UI已渲染）
+    observeEvent(input$analysis_type, {
+      req(input$analysis_type)
+
+      # 更新数据上传模块中的分析类型
+      if (!is.null(data_upload_module()$updateAnalysisType)) {
+        data_upload_module()$updateAnalysisType(input$analysis_type)
+        message("📤 传递分析类型到数据模块: ", input$analysis_type)
+      }
+
+      # 根据当前分析类型初始化对应的服务器模块
+      current_module <- switch(input$analysis_type,
+                               "q_describe" = "q_describe",
+                               "c_describe" = "c_describe",
+                               "c_srt" = "c_srt",
+                               "covancova" = "covancova",
+                               "q_param" = "q_param",
+                               "crosstable" = "crosstable",
+                               "lifetest" = "lifetest")
+
+      # 如果该模块尚未初始化，则初始化
+      if (is.null(analysis_servers[[current_module]])) {
+        message("初始化分析模块: ", current_module)
+
+        analysis_servers[[current_module]] <- switch(input$analysis_type,
+                                                     "q_describe" = mod_q_describe_server("q_describe_1", data_upload_module),
+                                                     "c_describe" = mod_c_describe_server("c_describe_1", data_upload_module),
+                                                     "c_srt" = mod_c_srt_server("c_srt_1", data_upload_module),
+                                                     "covancova" = mod_covancova_server("covancova_1", data_upload_module),
+                                                     "q_param" = mod_q_param_server("q_param_1", data_upload_module),
+                                                     "crosstable" = mod_crosstable_server("crosstable_1", data_upload_module),
+                                                     "lifetest" = mod_lifetest_server("lifetest_1", data_upload_module)
+        )
+      }
+    })
+
+    # 🟢 修复：清空参数按钮功能 - 只在用户点击时执行
+    observeEvent(input$clear_params, {
+      req(input$analysis_type)
+
+      message("🧹 用户点击清空参数按钮: ", input$analysis_type)
+
+      # 根据当前分析类型获取对应的参数函数
+      current_server <- switch(input$analysis_type,
+                               "q_describe" = analysis_servers$q_describe,
+                               "c_describe" = analysis_servers$c_describe,
+                               "c_srt" = analysis_servers$c_srt,
+                               "covancova" = analysis_servers$covancova,
+                               "q_param" = analysis_servers$q_param,
+                               "crosstable" = analysis_servers$crosstable,
+                               "lifetest" = analysis_servers$lifetest
+      )
+
+      # 如果该分析模块已初始化，则调用清空参数方法
+      if (!is.null(current_server)) {
+        tryCatch({
+          module_result <- current_server()
+
+          message("✅ 找到分析模块: ", input$analysis_type)
+
+          # 检查是否有清空参数的方法
+          if (!is.null(module_result$clear_params)) {
+            message("✅ 找到 clear_params 方法，开始执行...")
+            # 调用清空参数方法
+            module_result$clear_params()
+            showNotification(paste("已清空", get_analysis_name(input$analysis_type), "参数"),
+                             type = "message")
+          } else {
+            message("❌ 未找到 clear_params 方法")
+            showNotification("该分析方法暂无清空参数功能", type = "warning")
+          }
+        }, error = function(e) {
+          message("❌ 清空参数错误: ", e$message)
+          showNotification(paste("清空参数失败:", e$message), type = "error")
+        })
+      } else {
+        message("❌ 分析模块尚未初始化: ", input$analysis_type)
+        showNotification("分析模块尚未初始化，无法清空参数", type = "warning")
+      }
+    })
+
+    # 🟢 辅助函数：获取分析类型的中文名称
+    get_analysis_name <- function(type) {
+      switch(type,
+             "q_describe" = "描述性统计",
+             "c_describe" = "分类变量描述",
+             "c_srt" = "秩和检验",
+             "covancova" = "协方差分析",
+             "q_param" = "组间/组内比较",
+             "crosstable" = "2*2列联表",
+             "lifetest" = "生存分析")
+    }
+
+    # 🟢 获取当前分析模块的参数
+    get_current_params <- reactive({
+      req(input$analysis_type)
+
+      switch(input$analysis_type,
+             "q_describe" = if (!is.null(analysis_servers$q_describe)) analysis_servers$q_describe() else NULL,
+             "c_describe" = if (!is.null(analysis_servers$c_describe)) analysis_servers$c_describe() else NULL,
+             "c_srt" = if (!is.null(analysis_servers$c_srt)) analysis_servers$c_srt() else NULL,
+             "covancova" = if (!is.null(analysis_servers$covancova)) analysis_servers$covancova() else NULL,
+             "q_param" = if (!is.null(analysis_servers$q_param)) analysis_servers$q_param() else NULL,
+             "crosstable" = if (!is.null(analysis_servers$crosstable)) analysis_servers$crosstable() else NULL,
+             "lifetest" = if (!is.null(analysis_servers$lifetest)) analysis_servers$lifetest() else NULL
+      )
+    })
+
     # 初始化分析模块
     q_describe_params <- mod_q_describe_server("q_describe_1", data_upload_module)
     c_describe_params <- mod_c_describe_server("c_describe_1", data_upload_module)
@@ -90,6 +301,8 @@ mod_analyze_server <- function(id, data_upload_module) {
     q_param_params <- mod_q_param_server("q_param_1", data_upload_module)
     crosstable_params <- mod_crosstable_server("crosstable_1", data_upload_module)
     lifetest_params <- mod_lifetest_server("lifetest_1", data_upload_module)
+
+
 
     observeEvent(input$run, {
       # -------------
@@ -129,34 +342,42 @@ mod_analyze_server <- function(id, data_upload_module) {
         print(paste("数据维度:", dim(data_upload_module()$current_data), collapse = "x"))
         print(paste("数据状态:", ifelse(data_upload_module()$is_filtered, "已筛选", "原始")))
 
+        # 🟢 新增：辅助函数，从参数中移除clear_params
+        remove_clear_params <- function(params) {
+          if (!is.null(params$clear_params)) {
+            params$clear_params <- NULL
+          }
+          return(params)
+        }
+
         analysis_func <- switch(input$analysis_type,
                                 "q_describe" = function() {
                                   params <- q_describe_params()
-                                  do.call(q_describe, c(list(inds = current_data), params))
+                                  do.call(q_describe, c(list(inds = current_data), remove_clear_params(params)))
                                 },
                                 "c_describe" = function() {
                                   params <- c_describe_params()
-                                  do.call(c_describe, c(list(inds = current_data), params))
+                                  do.call(c_describe, c(list(inds = current_data), remove_clear_params(params)))
                                 },
                                 "c_srt" = function() {
                                   params <- c_srt_params()
-                                  do.call(c_srt, c(list(inds = current_data), params))
+                                  do.call(c_srt, c(list(inds = current_data), remove_clear_params(params)))
                                 },
                                 "covancova" = function() {
                                   params <- covancova_params()
-                                  do.call(covancova, c(list(inds = current_data), params))
+                                  do.call(covancova, c(list(inds = current_data), remove_clear_params(params)))
                                 },
                                 "q_param" = function() {
                                   params <- q_param_params()
-                                  do.call(q_param, c(list(inds = current_data), params))
+                                  do.call(q_param, c(list(inds = current_data), remove_clear_params(params)))
                                 },
                                 "crosstable" = function() {
                                   params <- crosstable_params()
-                                  do.call(c_crosstable, c(list(inds = current_data), params))
+                                  do.call(c_crosstable, c(list(inds = current_data), remove_clear_params(params)))
                                 },
                                 "lifetest" = function() {
                                   params <- lifetest_params()
-                                  do.call(lifetest, c(list(inds = current_data), params))
+                                  do.call(lifetest, c(list(inds = current_data), remove_clear_params(params)))
                                 }
         )
 
@@ -271,6 +492,51 @@ mod_analyze_server <- function(id, data_upload_module) {
       }
       return(ft)
     }
+
+    # 🟢 新增：清除结果的观察器
+    observeEvent(input$clear_result, {
+      # 清除结果
+      result(NULL)
+
+      # 清除表格输出
+      output$table_output <- renderUI({
+        tags$div(
+          style = "text-align: center; padding: 40px; color: #6c757d;",
+          icon("chart-bar", style = "font-size: 48px; margin-bottom: 20px;"),
+          tags$h4("暂无分析结果"),
+          tags$p("请在上传数据并设定好统计参数后，点击\"运行分析\"按钮生成分析结果")
+        )
+      })
+
+      showNotification("分析结果已清除", type = "message")
+    })
+
+    # 🟢 修改：在运行分析时，如果结果区域为空，显示提示信息
+    output$table_output <- renderUI({
+      if (is.null(result())) {
+        tags$div(
+          style = "text-align: center; padding: 40px; color: #6c757d;",
+          icon("chart-bar", style = "font-size: 48px; margin-bottom: 20px;"),
+          tags$h4("暂无分析结果"),
+          tags$p("请点击\"运行分析\"按钮生成分析结果")
+        )
+      } else {
+        ft <- result()
+        if (!is.null(ft)) {
+          if (is.list(ft) && length(ft) == 2) {
+            htmltools::HTML(
+              paste(
+                as.character(flextable::htmltools_value(ft[[1]])),
+                as.character(flextable::htmltools_value(ft[[2]])),
+                sep = "<br><br>"
+              )
+            )
+          } else {
+            htmltools::HTML(as.character(flextable::htmltools_value(ft)))
+          }
+        }
+      }
+    })
 
     # 下载处理函数
     output$download_result <- downloadHandler(

@@ -65,11 +65,7 @@ c_srt <- function(inds, data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test
 
 
   ##################################################
-    # 如果 data_cond 为空或无效，以及使用示例数据进行分析，使用 TRUE 条件（选择所有数据）
-    if (is.null(data_cond) || data_cond == "" || is.na(data_cond)) {
-      data_cond <- "TRUE"  # 选择所有行
-    }
-
+  # # 如果 data_cond 为空或无效，以及使用示例数据进行分析，使用 TRUE 条件（选择所有数据）
     grp_part <-  unlist(strsplit(group_c, "|", fixed = TRUE))
 
     grpvar_ <-  grp_part[1]
@@ -463,7 +459,6 @@ c_srt <- function(inds, data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test
 
     }
     ft
-
 
 
 }
