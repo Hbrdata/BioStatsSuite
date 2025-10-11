@@ -84,7 +84,8 @@ q_param<-function(inds, data_cond ,denominator_cond, group_c, varlist, rowtotal,
   group_cond <- c(grpnames_)
 
   data_0 <- data_0 %>%
-    dplyr::filter(.data[[grpvar_]] %in% group_cond )
+    dplyr::filter(.data[[grpvar_]] %in% group_cond ) %>%
+    dplyr::mutate(!!grpvar_ := factor(.data[[grpvar_]], levels = grpnames_)) # 🟢 在数据处理的早期阶段添加因子化
 
   var_expr <- rlang::ensym(anavar_)
   group_expr <- rlang::ensym(grpvar_)
@@ -118,7 +119,8 @@ q_param<-function(inds, data_cond ,denominator_cond, group_c, varlist, rowtotal,
     dplyr::filter(!!cond_n_title) #根据条件筛选出数据框
 
   data_1 <- data_1 %>%
-    dplyr::filter(.data[[grpvar_]] %in% group_cond )
+    dplyr::filter(.data[[grpvar_]] %in% group_cond ) %>%
+    dplyr::mutate(!!grpvar_ := factor(.data[[grpvar_]], levels = grpnames_)) # 🟢 在数据处理的早期阶段添加因子化
 
 
   d_1 <- data_1 %>%
