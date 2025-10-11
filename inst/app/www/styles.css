@@ -1,0 +1,256 @@
+body {
+  min-width: 1300px;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  background-color: #f8f9fa;
+}
+
+/* 导航栏样式 */
+.navbar {
+  background-color: #2573BA !important;
+  border: none !important;
+}
+
+.navbar-default .navbar-brand {
+  color: white !important;
+  font-weight: 600;
+}
+
+.navbar-default .navbar-nav > li > a {
+  color: white !important;
+  font-weight: 500;
+}
+
+.navbar-default .navbar-nav > li > a:hover {
+  background-color: #1a5a8a !important;
+  color: white !important;
+}
+
+.navbar-default .navbar-nav > .active > a {
+  background-color: #1a5a8a !important;
+  color: white !important;
+}
+
+/* 标题样式 - 确保导航栏标题为白色 */
+#logo-id {
+  color: #FFEB3B !important; /* 亮黄色 */
+  font-weight: 600;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+h1, h2, h3, h4, h5 {
+  color: #2573BA !important;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+  font-weight: 600 !important;
+}
+
+h1 {
+  font-size: 24px !important;
+  margin-top: 10px !important;
+  margin-bottom: 20px !important;
+}
+
+/* 面板和容器样式 */
+.well {
+  border: 1px solid #7CCCE5 !important;
+  border-radius: 8px !important;
+  background-color: white !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+  margin-bottom: 15px;
+}
+
+/* 输入控件样式 */
+.selectize-input {
+  border: 1px solid #7CCCE5 !important;
+  border-radius: 4px !important;
+  box-shadow: inset 0 1px 1px rgba(0,0,0,0.075) !important;
+}
+
+.selectize-input.focus {
+  border-color: #2573BA !important;
+  box-shadow: 0 0 0 0.2rem rgba(37, 115, 186, 0.25) !important;
+}
+
+.form-control {
+  border: 1px solid #7CCCE5 !important;
+  border-radius: 4px !important;
+}
+
+/* 标签页样式 */
+.nav-tabs > li > a {
+  color: #2573BA !important;
+  font-weight: 500;
+}
+
+.nav-tabs > li.active > a {
+  background-color: #2573BA !important;
+  color: white !important;
+  border: 1px solid #2573BA !important;
+}
+
+/* 统计分析模块的表格容器特殊处理 */
+#analyze_1-table_output .dataTables_wrapper {
+  border: 1px solid #dee2e6 !important;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+#analyze_1-table_output .dataTable {
+  border: none !important;
+}
+
+#analyze_1-table_output .dataTables_info,
+#analyze_1-table_output .dataTables_paginate {
+  border-top: 1px solid #dee2e6 !important;
+  background-color: #f8f9fa;
+}
+
+/* 下拉选择器样式 */
+.selectize-input .item, .selectize-dropdown .option {
+  font-size: 14px;
+}
+
+.selectize-dropdown .active {
+  background-color: #2573BA !important;
+  color: white !important;
+}
+
+/* 模块容器样式 */
+.module-container {
+  background: white;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border: 1px solid #e9ecef;
+}
+
+/* 筛选器样式 */
+.filter-accordion {
+  width: 100%;
+  background-color: #2573BA !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 4px !important;
+  margin-bottom: 10px !important;
+  font-size: 14px;
+  text-align: center;
+}
+
+.filter-container {
+  font-size: 14px;
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 4px;
+}
+
+/* 表单组样式 */
+.form-group.shiny-input-container {
+  width: 100%;
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 5px;
+}
+
+/* 通知消息样式 */
+.shiny-notification {
+  background-color: #2573BA !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 4px !important;
+}
+
+/* 拖放区域样式 */
+.droppable_agg, .droppable_blocks {
+  border: 2px dashed #2573BA !important;
+  border-radius: 8px !important;
+  padding: 1em;
+  min-height: 200px;
+  background-color: #f8f9fa !important;
+}
+
+.droppable_agg.ui-droppable-hover, .droppable_blocks.ui-droppable-hover {
+  background: #e3f2fd !important;
+  border-color: #1a5a8a !important;
+}
+
+/* 列表项样式 */
+#sortable_agg li, .all_blocks li, #block li, .droppable_blocks li {
+  border: 1px solid #7CCCE5 !important;
+  border-radius: 20px !important;
+  background-color: white !important;
+  margin-bottom: 5px;
+  padding: 8px 12px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+#sortable_agg li:hover, .all_blocks li:hover {
+  background-color: #e3f2fd !important;
+  border-color: #2573BA !important;
+  cursor: pointer;
+  transform: translateY(-1px);
+}
+
+/* 模态框样式 */
+.modal-content {
+  border-radius: 8px !important;
+  border: none !important;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
+}
+
+.modal-header {
+  background-color: #2573BA !important;
+  color: white !important;
+  border-bottom: none !important;
+  border-radius: 8px 8px 0 0 !important;
+}
+
+/* 图标样式 */
+.fa, .fas, .far {
+  margin-right: 5px;
+}
+
+/* 响应式调整 */
+@media (max-width: 1400px) {
+  body {
+    min-width: 1200px;
+  }
+}
+
+@media (max-width: 1200px) {
+  body {
+    min-width: 1100px;
+  }
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2573BA;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #1a5a8a;
+}
+
+/* 加载动画 */
+.shiny-progress-container {
+  background-color: rgba(37, 115, 186, 0.8) !important;
+}
+
+.shiny-progress .progress-text {
+  color: white !important;
+}
