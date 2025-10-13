@@ -268,7 +268,7 @@ mod_lifetest_server <- function(id, data_upload_module){
       current_label <- input$time_label
 
       # 只在标签为空时自动填充
-      if (current_label == "") {
+      if (is.null(current_label) || current_label == "") {
         label_mapping <- list(
           "lgzzhj" = "流感症状缓解时间（h）",
           "survival_time" = "生存时间",
@@ -296,8 +296,8 @@ mod_lifetest_server <- function(id, data_upload_module){
       current_data <- data_upload_module()$current_data
       current_labels <- input$group_labels
 
-      # 只在标签为空时自动填充
-      if (current_labels == "" && group_var %in% names(current_data)) {
+      # 取消:(只在标签为空时自动填充 current_labels == "" && )
+      if (group_var %in% names(current_data)) {
         unique_values <- unique(na.omit(current_data[[group_var]]))
         if (length(unique_values) <= 5) {
           labels <- paste(unique_values, collapse = "/")
