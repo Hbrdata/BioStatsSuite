@@ -91,9 +91,11 @@ golem_add_external_resources <- function() {
         display: block;
         width: 100%;
         height: auto;
-      }
+
+
     "))
     # Add here other external resources
     # for example, you can add shinyalert::useShinyalert()
+
   )
 }

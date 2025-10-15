@@ -27,54 +27,116 @@ mod_dataUpload_sidebar_ui <- function(id) {
         h5("数据上传管理", style = "margin: 0; color: #2c3e50; font-weight: 600;")
       ),
 
-      # 文件上传区域
-      tags$div(
-        style = "margin-bottom: 15px;",
-        fileInput(ns("file"), "上传数据文件",
-                  accept = c(".xlsx", "xls", "sas7bdat", ".rda", ".RData", ".csv", ".txt"),
-                  buttonLabel = "选择文件...",
-                  placeholder = "Excel、SAS、CSV或R数据文件")
-      ),
+      # # 🟢 修改：示例数据选择区域
+      # tags$div(
+      #   style = "margin-bottom: 15px;",
+      #   uiOutput(ns("example_data_selector"))
+      # ),
 
-      # 🟢 修改：示例数据选择区域
+      # 🟢 修改：示例数据选择区域 - 添加美化样式和提示信息
       tags$div(
-        style = "margin-bottom: 15px;",
-        uiOutput(ns("example_data_selector"))
-      ),
+        style = "margin-bottom: 15px; padding: 15px; background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%); border-radius: 8px; border: 1px solid #e1e5f1;",
 
-      # 文件信息
-      tags$div(
-        style = "background-color: #f8f9fa; padding: 8px 12px; border-radius: 5px; margin-bottom: 15px; border-left: 3px solid #6c757d;",
-        tags$small(icon("info-circle"), "支持格式: .xlsx, .xls, .sas7bdat, .rda, .RData, .csv, .txt", style = "color: #6c757d;"),
-        tags$br(),
-        tags$small(icon("hard-drive"), "最大文件大小: 5MB", style = "color: #6c757d;")
-      ),
-
-      # CSV分隔符选择（条件面板）
-      conditionalPanel(
-        condition = paste0("output['", ns("is_csv_file"), "']"),
+        # 示例数据选择标题
         tags$div(
-          style = "margin-bottom: 15px; padding: 10px; background-color: #f0f8ff; border-radius: 5px;",
-          tags$label("CSV文件选项", style = "font-weight: bold; color: #2c3e50;"),
-          radioButtons(ns("csv_separator"), "分隔符",
-                       choices = c("逗号 (,)" = ",",
-                                   "分号 (;)" = ";",
-                                   "制表符 (Tab)" = "\t",
-                                   "空格" = " "),
-                       selected = ","),
-          radioButtons(ns("csv_decimal"), "小数点",
-                       choices = c("点号 (.)" = ".", "逗号 (,)" = ","),
-                       selected = "."),
-          checkboxInput(ns("csv_header"), "包含表头", value = TRUE)
+          style = "display: flex; align-items: center; margin-bottom: 10px;",
+          # icon("star", style = "color: #ff6b35; margin-right: 8px; font-size: 16px;"),
+          # tags$strong("示例数据集", style = "color: #2c3e50; font-size: 14px;")
+        ),
+
+        # 示例数据选择器
+        uiOutput(ns("example_data_selector")),
+
+        # 🟢 新增：提示信息
+        tags$div(
+          style = "margin-top: 10px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px;",
+          tags$div(
+            style = "display: flex; align-items: flex-start;",
+            icon("info-circle", style = "color: #856404; margin-right: 8px; margin-top: 2px; flex-shrink: 0;"),
+            tags$div(
+              style = "flex: 1;",
+              tags$small(
+                "该示例数据集用于指引统计分析方法的使用，每个分析方法对应一种示例数据。",
+                tags$br(),
+                "如果已熟悉统计分析部分，可跳过该部分直接上传自己的数据文件。",
+                style = "color: #856404; line-height: 1.4;"
+              )
+            )
+          )
         )
       ),
 
+      # 文件上传区域 - 整体美化版
+      tags$div(
+        style = "border: 1px solid #e1e5f1;
+           padding: 20px;
+           margin-bottom: 20px;
+           border-radius: 8px;
+           background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
+           box-shadow: 0 2px 8px rgba(0,0,0,0.05);",
 
-      # 数据集名称
-      # textInput(ns("data_name"), "数据集名称",
-      #           value = "",
-      #           placeholder = "文件上传后自动填充",
-      #           width = "100%"),
+        # 区域标题
+        # tags$div(
+        #   style = "display: flex; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #d1d9ff;",
+        #   icon("upload", style = "color: #3498db; margin-right: 10px; font-size: 16px;"),
+        #   tags$strong("文件上传设置", style = "margin: 0; color: #2c3e50; font-size: 14px;")
+        # ),
+
+        # 文件上传控件
+        tags$div(
+          style = "margin-bottom: 15px;",
+          fileInput(ns("file"), "上传数据文件",
+                    accept = c(".xlsx", "xls", "sas7bdat", ".rda", ".RData", ".csv", ".txt"),
+                    buttonLabel = "选择文件...",
+                    placeholder = "Excel、SAS、CSV或R数据文件")
+        ),
+
+        # 文件信息
+        tags$div(
+          style = "background-color: #e8f4f8;
+             padding: 12px;
+             border-radius: 6px;
+             margin-bottom: 15px;
+             border-left: 4px solid #3498db;
+             border: 1px solid #b8e0f0;",
+          tags$div(
+            style = "display: flex; align-items: flex-start; margin-bottom: 8px;",
+            icon("info-circle", style = "color: #3498db; margin-right: 8px; margin-top: 2px; flex-shrink: 0;"),
+            tags$div(
+              style = "flex: 1;",
+              tags$small("支持格式: .xlsx, .xls, .sas7bdat, .rda, .RData, .csv, .txt",
+                         style = "color: #2c3e50; line-height: 1.4; display: block;"),
+              tags$small("最大文件大小: 5MB",
+                         style = "color: #2c3e50; line-height: 1.4; display: block; margin-top: 4px;")
+            )
+          )
+        ),
+
+        # 表头选项（无边框）
+        tags$div(
+          style = "margin-bottom: 15px;",
+          checkboxInput(ns("file_header"), "启用表头", value = TRUE)
+        ),
+
+        # 表头说明信息框
+        tags$div(
+          style = "background-color: #e8f4f8;
+           padding: 12px;
+           border-radius: 6px;
+           margin-bottom: 15px;
+           border-left: 4px solid #3498db;
+           border: 1px solid #b8e0f0;",
+          tags$div(
+            style = "display: flex; align-items: flex-start;",
+            icon("info-circle", style = "color: #3498db; margin-right: 8px; margin-top: 2px; flex-shrink: 0;"),
+            tags$div(
+              style = "flex: 1;",
+              tags$small("如果数据第一行是变量名，请勾选此项",
+                         style = "color: #2c3e50; line-height: 1.4;")
+            )
+          )
+        ),
+      ),
 
       # 清空按钮
       actionButton(ns("clear_data"), "清空数据",
@@ -208,14 +270,14 @@ mod_dataUpload_server <- function(id){
         "秩和检验" = "tyypspa",
         "组间/组内比较" = "cov_adur",
         "协方差分析" = "adts",
-        "列联表" = "adcrslb",
+        "2*2列联表" = "adcrslb",
         "生存分析" = "adhj"
       )
 
       selectInput(
         ns("example_data_choice"),
         "选择示例数据集",
-        choices = c("请选择..." = "", example_data_choices),
+        choices = c("请选择示例数据..." = "", example_data_choices),
         selected = rv$current_example_data_name
       )
     })
@@ -315,9 +377,7 @@ mod_dataUpload_server <- function(id){
         df <- read_data_file(
           file_path = input$file$datapath,
           file_name = input$file$name,
-          csv_separator = input$csv_separator,
-          csv_decimal = input$csv_decimal,
-          csv_header = input$csv_header
+          file_header = input$file_header  # 传递表头选项
         )
 
         rv$raw_data <- df

@@ -44,13 +44,13 @@ mod_data_filter_ui <- function(id,type, show_apply_button = TRUE) {
   ns <- NS(id)
 
   # 根据参数决定是否显示应用按钮
-  apply_button <- if (show_apply_button) {
-    actionButton(ns("apply_filter"), "应用筛选",
-                 icon = icon("check"),
-                 style = "background-color: #27ae60; color: white;")
-  } else {
-    NULL
-  }
+  # apply_button <- if (show_apply_button) {
+  #   actionButton(ns("apply_filter"), "应用筛选",
+  #                icon = icon("check"),
+  #                style = "background-color: #27ae60; color: white;")
+  # } else {
+  #   NULL
+  # }
 
   tagList(
     tags$div(
@@ -100,7 +100,7 @@ mod_data_filter_ui <- function(id,type, show_apply_button = TRUE) {
           actionButton(ns("add_filter"), "添加条件",
                        icon = icon("plus"),
                        style = "background-color: #3498db; color: white;"),
-          apply_button,  # 使用条件渲染的按钮
+          # apply_button,  # 使用条件渲染的按钮
           actionButton(ns("clear_filters"), "清空条件",
                        icon = icon("trash"),
                        style = "background-color: #e74c3c; color: white;")
