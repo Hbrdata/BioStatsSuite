@@ -95,11 +95,11 @@ mod_analyze_tabPanel_ui <- function(id) {
              tags$div(
                id = ns("button_container"),
                style = "padding: 12px;
-                        background-color: #f8f9fa;
-                        border-radius: 5px;
-                        border: 1px solid #dee2e6;
-                        margin-top: 15px;
-                        flex-shrink: 0;",
+           background-color: #f8f9fa;
+           border-radius: 5px;
+           border: 1px solid #dee2e6;
+           margin-top: 15px;
+           flex-shrink: 0;",
                fluidRow(
                  column(12,
                         tags$div(
@@ -107,9 +107,10 @@ mod_analyze_tabPanel_ui <- function(id) {
                           downloadButton(ns("download_result"), "下载结果",
                                          class = "btn-primary",
                                          style = "background-color: #3498db; border-color: #3498db;"),
-                          actionButton(ns("clear_result"), "清除结果",
-                                       icon = icon("trash"),
-                                       style = "background-color: #e74c3c; color: white; border: none;")
+                          # 替换清除按钮为管理结果按钮
+                          actionButton(ns("manage_results"), "管理结果",
+                                       icon = icon("list"),
+                                       style = "background-color: #f39c12; color: white; border: none;")
                         )
                  )
                )
@@ -118,13 +119,18 @@ mod_analyze_tabPanel_ui <- function(id) {
   )
 }
 
+
 #' analyze Server Functions
 #'
 #' @noRd
 mod_analyze_server <- function(id, data_upload_module) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
-    result <- reactiveVal(NULL)
+    # 🟢 修改：将result改为列表，支持增量存储
+    results_list <- reactiveVal(list())
+
+    # 🟢 新增：存储当前显示的结果索引
+    current_display_indices <- reactiveVal(integer(0))
 
     # # 🟢 新增：定义 rv 响应式值
     rv <- reactiveValues(
@@ -302,7 +308,17 @@ mod_analyze_server <- function(id, data_upload_module) {
     crosstable_params <- mod_crosstable_server("crosstable_1", data_upload_module)
     lifetest_params <- mod_lifetest_server("lifetest_1", data_upload_module)
 
+    # 🟢 新增：生成结果ID的函数
+    generate_result_id <- function() {
+      paste0("result_", as.integer(Sys.time()), "_", sample(1000, 1))
+    }
 
+    # 🟢 新增：生成结果标题的函数
+    generate_result_title <- function(analysis_type, data_name, timestamp) {
+      analysis_name <- get_analysis_name(analysis_type)
+      time_str <- format(timestamp, "%m-%d %H:%M")
+      paste0(analysis_name, " - ", data_name, " (", time_str, ")")
+    }
 
     observeEvent(input$run, {
       # -------------
@@ -325,9 +341,6 @@ mod_analyze_server <- function(id, data_upload_module) {
       }
       # -------------
 
-
-
-
       req(data_upload_module()$current_data)
       req(data_upload_module()$data_name)
       req(input$analysis_type)
@@ -335,7 +348,6 @@ mod_analyze_server <- function(id, data_upload_module) {
       tryCatch({
         data_name <- data_upload_module()$data_name
         current_data <- data_upload_module()$current_data
-
 
         print(paste("正在执行分析:", input$analysis_type))
         print(paste("数据名称:", data_name))
@@ -382,31 +394,42 @@ mod_analyze_server <- function(id, data_upload_module) {
         )
 
         if (!is.null(analysis_func)) {
-          result(analysis_func())
+          new_result <- analysis_func()
 
-          # 渲染分析结果
-          output$table_output <- renderUI({
-            ft <- result()
-            if (!is.null(ft)) {
-              if (is.list(ft) && length(ft) == 2) {
-                htmltools::HTML(
-                  paste(
-                    as.character(flextable::htmltools_value(ft[[1]])),
-                    as.character(flextable::htmltools_value(ft[[2]])),
-                    sep = "<br><br>"
-                  )
-                )
-              } else {
-                htmltools::HTML(as.character(flextable::htmltools_value(ft)))
-              }
-            }
-          })
+          # 🟢 修改：将新结果添加到结果列表中
+          if (!is.null(new_result)) {
+            result_id <- generate_result_id()
+            timestamp <- Sys.time()
+            result_title <- generate_result_title(input$analysis_type, data_name, timestamp)
 
-          showNotification("分析完成！", type = "message")
+            # 创建结果对象
+            result_obj <- list(
+              id = result_id,
+              title = result_title,
+              analysis_type = input$analysis_type,
+              data_name = data_name,
+              timestamp = timestamp,
+              result = new_result,
+              displayed = TRUE  # 默认显示新结果
+            )
+
+            # 获取当前结果列表
+            current_results <- results_list()
+
+            # 添加新结果
+            current_results[[result_id]] <- result_obj
+
+            # 更新结果列表
+            results_list(current_results)
+
+            # 🟢 更新当前显示索引：默认显示所有结果
+            current_display_indices(seq_along(current_results))
+
+            showNotification("分析完成！结果已添加到分析列表", type = "message")
+          }
         }
 
       }, error = function(e) {
-
         # -----------------------------------
         message("分析错误详情: ", e$message)
         message("错误调用栈:")
@@ -417,6 +440,214 @@ mod_analyze_server <- function(id, data_upload_module) {
       })
     })
 
+    # 🟢 新增：管理结果对话框
+    observeEvent(input$manage_results, {
+      req(results_list())
+
+      current_results <- results_list()
+
+      if (length(current_results) == 0) {
+        showNotification("暂无分析结果可管理", type = "warning")
+        return()
+      }
+
+      # 创建对话框内容
+      showModal(modalDialog(
+        title = tags$div(
+          style = "display: flex; justify-content: space-between; align-items: center;",
+          tags$span("管理分析结果"),
+          tags$div(
+            style = "display: flex; gap: 10px;",
+            actionButton(ns("select_all_results"), "全选",
+                         style = "background-color: #3498db; color: white; border: none; padding: 4px 8px; font-size: 12px;"),
+            actionButton(ns("deselect_all_results"), "全不选",
+                         style = "background-color: #95a5a6; color: white; border: none; padding: 4px 8px; font-size: 12px;")
+          )
+        ),
+        size = "l",
+        footer = tagList(
+          actionButton(ns("delete_selected_results"), "删除选中结果",
+                       icon = icon("trash"),
+                       style = "background-color: #e74c3c; color: white; border: none;"),
+          modalButton("关闭")
+        ),
+
+        # 结果列表
+        tags$div(
+          style = "max-height: 400px; overflow-y: auto;",
+          lapply(seq_along(current_results), function(i) {
+            result <- current_results[[i]]
+            result_id <- names(current_results)[i]
+
+            tags$div(
+              style = "border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 5px; background-color: #f9f9f9;",
+              tags$div(
+                style = "display: flex; align-items: center;",
+                checkboxInput(ns(paste0("result_check_", result_id)),
+                              label = NULL,
+                              value = TRUE,
+                              width = "20px"),
+                tags$div(
+                  style = "margin-left: 10px; flex: 1;",
+                  tags$strong(result$title),
+                  tags$br(),
+                  tags$small(paste("分析类型:", get_analysis_name(result$analysis_type)),
+                             style = "color: #666;"),
+                  tags$br(),
+                  tags$small(paste("时间:", format(result$timestamp, "%Y-%m-%d %H:%M:%S")),
+                             style = "color: #999;")
+                )
+              )
+            )
+          })
+        )
+      ))
+    })
+
+    # 🟢 新增：全选结果
+    observeEvent(input$select_all_results, {
+      current_results <- results_list()
+      if (length(current_results) > 0) {
+        # 更新所有复选框为选中状态
+        for (i in seq_along(current_results)) {
+          result_id <- names(current_results)[i]
+          updateCheckboxInput(session, paste0("result_check_", result_id), value = TRUE)
+        }
+      }
+    })
+
+    # 🟢 新增：全不选结果
+    observeEvent(input$deselect_all_results, {
+      current_results <- results_list()
+      if (length(current_results) > 0) {
+        # 更新所有复选框为未选中状态
+        for (i in seq_along(current_results)) {
+          result_id <- names(current_results)[i]
+          updateCheckboxInput(session, paste0("result_check_", result_id), value = FALSE)
+        }
+      }
+    })
+
+    # 🟢 新增：删除选中结果
+    observeEvent(input$delete_selected_results, {
+      current_results <- results_list()
+      if (length(current_results) == 0) return()
+
+      # 收集要删除的结果ID
+      results_to_delete <- c()
+
+      for (i in seq_along(current_results)) {
+        result_id <- names(current_results)[i]
+        checkbox_id <- paste0("result_check_", result_id)
+
+        # 检查复选框状态
+        if (!is.null(input[[checkbox_id]]) && input[[checkbox_id]] == TRUE) {
+          results_to_delete <- c(results_to_delete, result_id)
+        }
+      }
+
+      if (length(results_to_delete) == 0) {
+        showNotification("请先选择要删除的结果", type = "warning")
+        return()
+      }
+
+      # 从结果列表中移除选中的结果
+      updated_results <- current_results
+      for (result_id in results_to_delete) {
+        updated_results[[result_id]] <- NULL
+      }
+
+      # 更新结果列表
+      results_list(updated_results)
+
+      # 移除模态框
+      removeModal()
+
+      showNotification(paste("已删除", length(results_to_delete), "个分析结果"), type = "message")
+    })
+
+    # 🟢 修改：渲染分析结果 - 显示所有选中的结果
+    output$table_output <- renderUI({
+      current_results <- results_list()
+
+      if (length(current_results) == 0) {
+        return(
+          tags$div(
+            style = "text-align: center; padding: 40px; color: #6c757d;",
+            icon("chart-bar", style = "font-size: 48px; margin-bottom: 20px;"),
+            tags$h4("暂无分析结果"),
+            tags$p("请点击\"运行分析\"按钮生成分析结果")
+          )
+        )
+      }
+
+      # 收集所有要显示的结果
+      display_contents <- list()
+
+      for (i in seq_along(current_results)) {
+        result_id <- names(current_results)[i]
+        result <- current_results[[result_id]]
+        checkbox_id <- paste0("result_check_", result_id)
+
+        # 检查复选框状态，如果不存在则默认为TRUE（显示）
+        should_display <- if (!is.null(input[[checkbox_id]])) {
+          input[[checkbox_id]]
+        } else {
+          TRUE
+        }
+
+        if (should_display) {
+          # 添加结果标题
+          display_contents <- c(display_contents, list(
+            tags$div(
+              style = "border-bottom: 2px solid #3498db; padding: 10px 0; margin-bottom: 15px;",
+              tags$h5(result$title, style = "color: #2c3e50; margin: 0;")
+            )
+          ))
+
+          # 添加结果内容
+          ft <- result$result
+          if (!is.null(ft)) {
+            if (is.list(ft) && length(ft) == 2) {
+              display_contents <- c(display_contents, list(
+                htmltools::HTML(
+                  paste(
+                    as.character(flextable::htmltools_value(ft[[1]])),
+                    as.character(flextable::htmltools_value(ft[[2]])),
+                    sep = "<br><br>"
+                  )
+                )
+              ))
+            } else {
+              display_contents <- c(display_contents, list(
+                htmltools::HTML(as.character(flextable::htmltools_value(ft)))
+              ))
+            }
+          }
+
+          # 添加分隔线（除了最后一个结果）
+          if (i < length(current_results)) {
+            display_contents <- c(display_contents, list(
+              tags$hr(style = "border-top: 2px dashed #ddd; margin: 20px 0;")
+            ))
+          }
+        }
+      }
+
+      if (length(display_contents) == 0) {
+        return(
+          tags$div(
+            style = "text-align: center; padding: 40px; color: #6c757d;",
+            icon("eye-slash", style = "font-size: 48px; margin-bottom: 20px;"),
+            tags$h4("没有选中的结果可显示"),
+            tags$p("请在\"管理结果\"中选择要显示的分析结果")
+          )
+        )
+      }
+
+      # 返回所有显示内容
+      tagList(display_contents)
+    })
 
     # 辅助函数：估算表格总宽度
     estimate_table_width <- function(ft) {
@@ -493,90 +724,85 @@ mod_analyze_server <- function(id, data_upload_module) {
       return(ft)
     }
 
-    # 🟢 新增：清除结果的观察器
-    observeEvent(input$clear_result, {
-      # 清除结果
-      result(NULL)
-
-      # 清除表格输出
-      output$table_output <- renderUI({
-        tags$div(
-          style = "text-align: center; padding: 40px; color: #6c757d;",
-          icon("chart-bar", style = "font-size: 48px; margin-bottom: 20px;"),
-          tags$h4("暂无分析结果"),
-          tags$p("请在上传数据并设定好统计参数后，点击\"运行分析\"按钮生成分析结果")
-        )
-      })
-
-      showNotification("分析结果已清除", type = "message")
-    })
-
-    # 🟢 修改：在运行分析时，如果结果区域为空，显示提示信息
-    output$table_output <- renderUI({
-      if (is.null(result())) {
-        tags$div(
-          style = "text-align: center; padding: 40px; color: #6c757d;",
-          icon("chart-bar", style = "font-size: 48px; margin-bottom: 20px;"),
-          tags$h4("暂无分析结果"),
-          tags$p("请点击\"运行分析\"按钮生成分析结果")
-        )
-      } else {
-        ft <- result()
-        if (!is.null(ft)) {
-          if (is.list(ft) && length(ft) == 2) {
-            htmltools::HTML(
-              paste(
-                as.character(flextable::htmltools_value(ft[[1]])),
-                as.character(flextable::htmltools_value(ft[[2]])),
-                sep = "<br><br>"
-              )
-            )
-          } else {
-            htmltools::HTML(as.character(flextable::htmltools_value(ft)))
-          }
-        }
-      }
-    })
-
-    # 下载处理函数
+    # 🟢 修改：下载处理函数 - 下载所有选中的结果
     output$download_result <- downloadHandler(
       filename = function() {
-        paste0("analysis_result_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".docx")
+        paste0("analysis_results_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".docx")
       },
       content = function(file) {
-        req(result())
-        ft <- result()
+        current_results <- results_list()
+        if (length(current_results) == 0) {
+          showNotification("没有可下载的分析结果", type = "warning")
+          return()
+        }
 
         tryCatch({
-          # 如果结果是列表，合并所有表格
-          if (is.list(ft) && all(sapply(ft, function(x) inherits(x, "flextable")))) {
-            # 创建临时文件
-            temp_docx <- tempfile(fileext = ".docx")
+          # 创建新的Word文档
+          doc <- officer::read_docx()
 
-            # 创建新的Word文档
-            doc <- officer::read_docx()
+          # 收集所有要下载的结果
+          results_to_download <- list()
 
-            # 添加每个表格
-            for (i in seq_along(ft)) {
-              if (i > 1) {
-                # 在表格之间添加分页符
-                doc <- officer::body_add_break(doc)
-              }
-              doc <- flextable::body_add_flextable(doc, value = ft[[i]])
+          for (i in seq_along(current_results)) {
+            result_id <- names(current_results)[i]
+            result <- current_results[[result_id]]
+            checkbox_id <- paste0("result_check_", result_id)
+
+            # 检查复选框状态，如果不存在则默认为TRUE（下载）
+            should_download <- if (!is.null(input[[checkbox_id]])) {
+              input[[checkbox_id]]
+            } else {
+              TRUE
             }
 
-            # 保存文档
-            print(doc, target = temp_docx)
-            file.copy(temp_docx, file)
-            unlink(temp_docx)
-          } else if (inherits(ft, "flextable")) {
-            # 单个表格的情况
-            doc <- officer::read_docx()
-            doc <- flextable::body_add_flextable(doc, value = ft)
-            print(doc, target = file)
-          } else {
-            showNotification("无法下载：结果格式不支持", type = "error")
+            if (should_download) {
+              results_to_download <- c(results_to_download, list(result))
+            }
           }
+
+          if (length(results_to_download) == 0) {
+            showNotification("请先在管理结果中选择要下载的分析结果", type = "warning")
+            return()
+          }
+
+          # 添加每个结果到文档
+          for (i in seq_along(results_to_download)) {
+            result <- results_to_download[[i]]
+
+            # 添加结果标题
+            doc <- officer::body_add_par(doc, result$title, style = "heading 1")
+            doc <- officer::body_add_par(doc, paste("分析类型:", get_analysis_name(result$analysis_type)), style = "Normal")
+            doc <- officer::body_add_par(doc, paste("数据名称:", result$data_name), style = "Normal")
+            doc <- officer::body_add_par(doc, paste("分析时间:", format(result$timestamp, "%Y-%m-%d %H:%M:%S")), style = "Normal")
+            doc <- officer::body_add_par(doc, "", style = "Normal")  # 空行
+
+            # 添加结果表格
+            ft <- result$result
+            if (!is.null(ft)) {
+              if (is.list(ft) && all(sapply(ft, function(x) inherits(x, "flextable")))) {
+                # 多个表格的情况
+                for (table_idx in seq_along(ft)) {
+                  doc <- flextable::body_add_flextable(doc, value = ft[[table_idx]])
+                  if (table_idx < length(ft)) {
+                    doc <- officer::body_add_break(doc)  # 表格间添加分页
+                  }
+                }
+              } else if (inherits(ft, "flextable")) {
+                # 单个表格的情况
+                doc <- flextable::body_add_flextable(doc, value = ft)
+              }
+            }
+
+            # 在结果之间添加分页（除了最后一个结果）
+            if (i < length(results_to_download)) {
+              doc <- officer::body_add_break(doc)
+            }
+          }
+
+          # 保存文档
+          print(doc, target = file)
+          showNotification(paste("成功下载", length(results_to_download), "个分析结果"), type = "message")
+
         }, error = function(e) {
           showNotification(paste("下载错误:", e$message), type = "error")
         })
@@ -585,12 +811,10 @@ mod_analyze_server <- function(id, data_upload_module) {
 
     return(reactive({
       list(
-        result = result(),
+        results_list = results_list(),
         current_analysis_type = current_analysis_type()
       )
     }))
-
-
   })
 }
 

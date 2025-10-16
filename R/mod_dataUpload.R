@@ -27,45 +27,6 @@ mod_dataUpload_sidebar_ui <- function(id) {
         h5("数据上传管理", style = "margin: 0; color: #2c3e50; font-weight: 600;")
       ),
 
-      # # 🟢 修改：示例数据选择区域
-      # tags$div(
-      #   style = "margin-bottom: 15px;",
-      #   uiOutput(ns("example_data_selector"))
-      # ),
-
-      # 🟢 修改：示例数据选择区域 - 添加美化样式和提示信息
-      tags$div(
-        style = "margin-bottom: 15px; padding: 15px; background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%); border-radius: 8px; border: 1px solid #e1e5f1;",
-
-        # 示例数据选择标题
-        tags$div(
-          style = "display: flex; align-items: center; margin-bottom: 10px;",
-          # icon("star", style = "color: #ff6b35; margin-right: 8px; font-size: 16px;"),
-          # tags$strong("示例数据集", style = "color: #2c3e50; font-size: 14px;")
-        ),
-
-        # 示例数据选择器
-        uiOutput(ns("example_data_selector")),
-
-        # 🟢 新增：提示信息
-        tags$div(
-          style = "margin-top: 10px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px;",
-          tags$div(
-            style = "display: flex; align-items: flex-start;",
-            icon("info-circle", style = "color: #856404; margin-right: 8px; margin-top: 2px; flex-shrink: 0;"),
-            tags$div(
-              style = "flex: 1;",
-              tags$small(
-                "该示例数据集用于指引统计分析方法的使用，每个分析方法对应一种示例数据。",
-                tags$br(),
-                "如果已熟悉统计分析部分，可跳过该部分直接上传自己的数据文件。",
-                style = "color: #856404; line-height: 1.4;"
-              )
-            )
-          )
-        )
-      ),
-
       # 文件上传区域 - 整体美化版
       tags$div(
         style = "border: 1px solid #e1e5f1;
@@ -96,7 +57,8 @@ mod_dataUpload_sidebar_ui <- function(id) {
           style = "background-color: #e8f4f8;
              padding: 12px;
              border-radius: 6px;
-             margin-bottom: 15px;
+             margin-top: 8px;
+             margin-bottom: 10px;
              border-left: 4px solid #3498db;
              border: 1px solid #b8e0f0;",
           tags$div(
@@ -136,6 +98,41 @@ mod_dataUpload_sidebar_ui <- function(id) {
             )
           )
         ),
+      ),
+
+      # 🟢 修改：示例数据选择区域 - 添加美化样式和提示信息
+      tags$div(
+        style = "margin-bottom: 15px; padding: 15px; background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%); border-radius: 8px; border: 1px solid #e1e5f1;",
+
+        # 示例数据选择标题
+        tags$div(
+          style = "display: flex; align-items: center; margin-bottom: 10px;",
+          # icon("star", style = "color: #ff6b35; margin-right: 8px; font-size: 16px;"),
+          # tags$strong("示例数据集", style = "color: #2c3e50; font-size: 14px;")
+        ),
+
+        # 🟢 新增：提示信息
+        tags$div(
+          style = "margin-top: 10px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px;",
+          tags$div(
+            style = "display: flex; align-items: flex-start;",
+            icon("info-circle", style = "color: #856404; margin-right: 8px; margin-top: 2px; flex-shrink: 0;"),
+            tags$div(
+              style = "flex: 1;",
+              tags$small(
+                "如对每种分析方法使用的数据格式有疑问，可以参考示例数据集。",
+                style = "color: #856404; line-height: 1.4;"
+              )
+            )
+          )
+        ),
+
+        tags$br(),
+
+        # 示例数据选择器
+        uiOutput(ns("example_data_selector"))
+
+
       ),
 
       # 清空按钮
@@ -276,8 +273,8 @@ mod_dataUpload_server <- function(id){
 
       selectInput(
         ns("example_data_choice"),
-        "选择示例数据集",
-        choices = c("请选择示例数据..." = "", example_data_choices),
+        "示例数据集(可选)",
+        choices = c("选取数据集..." = "", example_data_choices),
         selected = rv$current_example_data_name
       )
     })
