@@ -11,7 +11,7 @@ app_ui <- function(request) {
     navbarPage(
       title = div(
         id = "logo-id",
-        "小海 - 统计分析工具套件"
+        "小海 - 统计分析助手"
         # ,img(
         #   src = "www/app_ICON.png",
         #   style = "float:left; padding-right:3px; height:25px; width:30px"
