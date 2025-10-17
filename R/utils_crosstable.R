@@ -269,14 +269,14 @@ c_crosstable <- function(inds,data_cond,group_c, missing, row_colvar, format,tab
     np_name <- paste0("np_", 1:(catnum_))
     n3_[[i]] <- n2_[[i]] %>% select(colvarcd_,np_name,np_total)
     for (s_ in 1:catnum_){
-      n3_[[i]]$colvarcd_[1+catnum_]<-"合计"
+      n3_[[i]]$colvarcd_[1+catnum_]<-"\u3000合计"
     }
     na_row <- rep(NA, ncol(n3_[[i]]))
     names(na_row) <- names(n3_[[i]])
     n3_[[i]] <- rbind(na_row,n3_[[i]])
     n3_[[i]][1,1] <- cat_grpname[[i]]
     for (z_ in 1:catnum_) {
-      n3_[[i]][z_+1,1] <- catlabel_[[z_]]
+      n3_[[i]][z_+1,1] <- paste0("\u3000", catlabel_[[z_]])
     }
     col_name <- unlist(catlabel_)
     row_col_name <- paste(collabel_,"/",rowlabel_ )

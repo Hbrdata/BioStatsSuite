@@ -158,7 +158,7 @@ q_param<-function(inds, data_cond ,denominator_cond, group_c, varlist, rowtotal,
   title_0 <- dplyr::bind_rows(title_0,title_0_1)
 
 
-  title_0$grp_n = paste(title_0$group_0, '\n(n = ', title_0$n, ')')
+  title_0$grp_n = paste(title_0$group_0, '\n(N = ', title_0$n, ')')
 
   title_0 <- title_0 %>% dplyr::select(grp_n)
 
@@ -232,7 +232,7 @@ q_param<-function(inds, data_cond ,denominator_cond, group_c, varlist, rowtotal,
 
   s_2 <- dplyr::bind_rows(s_0,s_1)
 
-  s_2$grp_n = paste(s_2$group_0, '\n(n = ', s_2$n, ')')
+  s_2$grp_n = paste(s_2$group_0, '\n(N = ', s_2$n, ')')
 
   s_2 <- s_2 %>% dplyr::select(grp_n,N_Missing,Mean_SD,Median_Q1_Q3,Min_Max)
 
@@ -268,10 +268,10 @@ q_param<-function(inds, data_cond ,denominator_cond, group_c, varlist, rowtotal,
   t_2 <- dplyr::slice(t_1, -1)# 移除第一行
   names(t_2) <- col_names # 将第一行的值设置为列名
   # t_2[is.na(t_2)] <- ""   #将数据框中NA显示为空值
-  t_2[2,1] <- '  N(Missing)'
-  t_2[3,1] <- '  Mean(SD)'
-  t_2[4,1] <- '  Median(Q1,Q3)'
-  t_2[5,1] <- '  Min,Max'
+  t_2[2,1] <- '\u00A0\u00A0\u00A0\u00A0N(Missing)'
+  t_2[3,1] <- '\u00A0\u00A0\u00A0\u00A0Mean(SD)'
+  t_2[4,1] <- '\u00A0\u00A0\u00A0\u00A0Median(Q1,Q3)'
+  t_2[5,1] <- '\u00A0\u00A0\u00A0\u00A0Min,Max'
   t_2$统计量 <- NA
   t_2$P值 <- NA
   t_2$统计量 <- as.character(t_2$统计量)

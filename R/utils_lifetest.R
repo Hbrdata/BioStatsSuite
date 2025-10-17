@@ -115,7 +115,7 @@ lifetest <- function(inds,data_cond,group_c,censor,time_label,timelist,type,topl
   }
   title_0$grp_n <- NA
 
-  title_0$grp_n <- paste(title_0$grp_name,'\n(n = ',title_0$n, ')')
+  title_0$grp_n <- paste(title_0$grp_name,'\n(N = ',title_0$n, ')')
 
   title_0_1 <- data.frame(matrix(ncol = ncol(title_0),nrow = 1))
   names(title_0_1) <- names(title_0)
@@ -145,7 +145,7 @@ lifetest <- function(inds,data_cond,group_c,censor,time_label,timelist,type,topl
 
   time_num <- length(timelist)
   for (i in 1:time_num) {
-    result_0[i+1,1] <- timelist[i]
+    result_0[i+1,1] <- paste0("\u3000", timelist[i])
   }
 
   result_0[1,1] <- paste(timelabel_,"(Log-Rank=",sprintf("%.2f",logrank_test$chisq),",","P=",sprintf("%.4f",logrank_test$pvalue),")")
@@ -208,10 +208,15 @@ lifetest <- function(inds,data_cond,group_c,censor,time_label,timelist,type,topl
     }
   }
 
-  result_0$指标[3+time_num] <- "25%分位数(95%CI)"
-  result_0$指标[4+time_num] <- "50%分位数(95%CI)"
-  result_0$指标[5+time_num] <- "75%分位数(95%CI)"
-  result_0$指标[nrow(result_0)] <- "删失率(%)"
+  quantile_25_label <- paste0("\u3000","25%分位数(95%CI)")
+  quantile_50_label <- paste0("\u3000","50%分位数(95%CI)")
+  quantile_75_label <- paste0("\u3000","75%分位数(95%CI)")
+  censor_rate_label <- paste0("\u3000","删失率(%)")
+
+  result_0$指标[3+time_num] <- quantile_25_label
+  result_0$指标[4+time_num] <- quantile_50_label
+  result_0$指标[5+time_num] <- quantile_75_label
+  result_0$指标[nrow(result_0)] <- censor_rate_label
 
   fit_50 <- data.frame(summary(survfit(Surv(time_0,censor_0)~grpcd_,conf.type="log-log",data = d_0))$table)
   quantile_info <- quantile(survfit(Surv(time_0, censor_0) ~ grpcd_, conf.type = "log-log", data = d_0), probs = c(0.25, 0.5, 0.75), conf.int = TRUE)
@@ -261,10 +266,10 @@ lifetest <- function(inds,data_cond,group_c,censor,time_label,timelist,type,topl
   fit_50$delete <- sprintf('%.2f',((fit_50$records-fit_50$events)/fit_50$records)*100)
 
   for (i in 1:grp_num){
-    result_0[which(result_0$指标 == '25%分位数(95%CI)'),i+1] <- fit_50$lsd[i]
-    result_0[which(result_0$指标 == '50%分位数(95%CI)'),i+1] <- fit_50$msd[i]
-    result_0[which(result_0$指标 == '75%分位数(95%CI)'),i+1] <- fit_50$usd[i]
-    result_0[which(result_0$指标 == '删失率(%)'),i+1] <- fit_50$delete[i]
+    result_0[which(result_0$指标 == quantile_25_label),i+1] <- fit_50$lsd[i]
+    result_0[which(result_0$指标 == quantile_50_label),i+1] <- fit_50$msd[i]
+    result_0[which(result_0$指标 == quantile_75_label),i+1] <- fit_50$usd[i]
+    result_0[which(result_0$指标 == censor_rate_label),i+1] <- fit_50$delete[i]
   }
 
 
@@ -284,7 +289,8 @@ lifetest <- function(inds,data_cond,group_c,censor,time_label,timelist,type,topl
   ft<-flextable::hline_bottom(ft,border = flextable::fp_border_default(color="black",width=1.5),part="body")
   ft<-flextable::hline(ft,i=1,border = flextable::fp_border_default(color="black",width=1),part="header")
   ft <- flextable::add_footer_lines(ft,footnote)
-  rm(table_out,envir = .GlobalEnv)
+
+  if (exists('table_out', envir = .GlobalEnv)) rm(table_out, envir = .GlobalEnv)
   ft <- flextable::autofit(ft)
   ft
 }

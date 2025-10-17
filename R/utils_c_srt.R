@@ -123,11 +123,11 @@ c_srt <- function(inds, data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test
     )
 
     for (i in 1:catnum_) {
-      cat_$catlabel_[i] <- catlabel_[[i]]
+      cat_$catlabel_[i] <- paste0("\u3000", catlabel_[[i]])
       cat_$catorder_[i] <- i
     }
 
-    cat_999 <- list(catlabel_ = '合计',catorder_=999)
+    cat_999 <- list(catlabel_ = '\u3000合计',catorder_=999)
     cat_ <- rbind(cat_,cat_999)
 
     # data_cond_part <- unlist(strsplit(data_cond,"|",fixed = TRUE))
@@ -381,11 +381,11 @@ c_srt <- function(inds, data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test
         n = n(),  # 计数每个组的观测值数量
       )
 
-
+    grpnames_ <- paste0("\u3000\u3000\u3000\u3000", grpnames_)
 
     title_0 <- dplyr::bind_rows(title_0,title_0_1)
     title_0$grp_name <- c(grpnames_,'合计')
-    title_0$grp_n <- paste(title_0$grp_name,'\n(n = ',title_0$n, ')')
+    title_0$grp_n <- paste(title_0$grp_name,'\n(N = ',title_0$n, ')')
     title_0 <- title_0 %>% dplyr::select( grp_n )
     title_0 <- data.frame(t(title_0))
 
