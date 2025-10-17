@@ -32,7 +32,7 @@ body {
 
 /* 标题样式 - 确保导航栏标题为白色 */
 #logo-id {
-  color: #FFEB3B !important; /* 亮黄色 */
+  color: #EB6100 !important; /* 橙色 */
   font-weight: 600;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
