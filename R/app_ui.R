@@ -8,22 +8,43 @@ app_ui <- function(request) {
   tagList(
     golem_add_external_resources(),
 
+
     navbarPage(
-      title = div(
-        id = "logo-id",
-        "小海 - 统计分析助手"
-        # ,img(
-        #   src = "www/app_ICON.png",
-        #   style = "float:left; padding-right:3px; height:25px; width:30px"
-        # )
+      title = tags$div(
+        style = "color: white !important; font-weight: 700 !important;
+                 font-size: 22px !important;
+                 text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5) !important;",
+        "小海 - 统计助手"
       ),
+      # title = div(
+      #   id = "logo-id",
+      #   "小海 - 统计助手"
+      #   # ,img(
+      #   #   src = "www/app_ICON.png",
+      #   #   style = "float:left; padding-right:3px; height:25px; width:30px"
+      #   # )
+      # ),
       id = "navbarID",
       windowTitle = "BioStatsSuite",
 
+      # 导航栏样式设置
+      header = tags$style(HTML("
+        .navbar {
+          background-color: #2573BA !important;
+          border: none !important;
+          min-height: 70px !important;
+          padding-top: 8px !important;
+          padding-bottom: 8px !important;
+        }
+      ")),
+
       # 数据上传和管理标签页
       tabPanel(
-        title = "数据管理",
-        icon = icon("database"),
+        title = tags$span(
+          style = "font-size: 18px;",
+          icon("database"),
+          "数据管理"
+        ),
         fluidRow(
           column(
             width = 3,
@@ -38,8 +59,11 @@ app_ui <- function(request) {
 
       # 统计分析标签页
       tabPanel(
-        title = "统计分析",
-        icon = icon("chart-bar"),
+        title = tags$span(
+          style = "font-size: 18px;",
+          icon("chart-bar"),
+          "统计分析"
+        ),
         fluidRow(
           column(
             width = 3,
@@ -51,11 +75,14 @@ app_ui <- function(request) {
           )
         )
       )
-    ),
-    tags$script(
-      HTML("var header = $('.navbar > .container-fluid');
-                                header.append('<img src=\"www/HBRDATA.png\" style=\"width:4.5%;height:2.5%;float:right;padding-top:5px;\"></a>')")
     )
+
+
+
+    # tags$script(
+    #   HTML("var header = $('.navbar > .container-fluid');
+    #     header.prepend('<div style=\"float:left; margin:5px 15px 0 0;\"><img src=\"www/HBRDATA.png\" style=\"width:45px;height:25px;\"></div>')")
+    # )
   )
 }
 
