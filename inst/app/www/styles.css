@@ -4,20 +4,30 @@ body {
   background-color: #f8f9fa;
 }
 
-/* 导航栏样式 */
 .navbar {
   background-color: #2573BA !important;
   border: none !important;
+  min-height: 70px !important; /* 增加导航栏高度 */
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
 }
 
 .navbar-default .navbar-brand {
   color: white !important;
   font-weight: 600;
+  font-size: 24px !important; /* 增大字体 */
+  height: 70px !important;
+  line-height: 50px !important;
+  padding: 10px 15px !important;
 }
+
 
 .navbar-default .navbar-nav > li > a {
   color: white !important;
   font-weight: 500;
+  line-height: 40px !important;
+  padding-top: 15px !important;
+  padding-bottom: 15px !important;
 }
 
 .navbar-default .navbar-nav > li > a:hover {
@@ -30,11 +40,31 @@ body {
   color: white !important;
 }
 
-/* 标题样式 - 确保导航栏标题为白色 */
+
+/* 网页左下角图片样式 */
+#bottom-left-logo {
+  position: relative;
+  bottom: auto;
+  left: auto;
+  float: left;
+  margin: 10px;
+  background-color: rgba(255, 255, 255, 0.9);
+  padding: 5px;
+  border-radius: 4px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* 确保主要内容区域不会被底部logo遮挡 */
+.main-content {
+  margin-bottom: 80px !important;
+}
+
+/* 调整logo-id样式为白色 */
 #logo-id {
-  color: #EB6100 !important; /* 橙色 */
-  font-weight: 600;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  color: white !important; /* 改为白色 */
+  font-weight: 700 !important; /* 加粗 */
+  font-size: 22px !important; /* 加大字体 */
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5) !important;
 }
 
 h1, h2, h3, h4, h5 {
