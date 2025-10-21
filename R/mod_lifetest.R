@@ -72,8 +72,15 @@ mod_lifetest_ui <- function(id) {
       textInput(ns("timelist"), "时间点列表", value = "",
                 placeholder = "逗号分隔的时间点"),
 
-      # 输出类型
-      numericInput(ns("output_type"), "输出类型", value = 1, min = 0, max = 1),
+      # 输出类型 - 修改为选择输入
+      tags$div(
+        style = "margin-bottom: 15px;",
+        selectizeInput(ns("output_type"), "输出类型",
+                       choices = c("生存率" = 0, "失效率" = 1),
+                       selected = 1,
+                       multiple = FALSE,
+                       options = list(placeholder = '选择输出类型'))
+      ),
 
       # 表格设置
       textInput(ns("topleftlabel"), "左列标签", value = "指标"),
@@ -343,7 +350,7 @@ mod_lifetest_server <- function(id, data_upload_module){
         censor = input$censor_var,
         time_label = time_label_text,
         timelist = as.numeric(unlist(strsplit(input$timelist, ",\\s*"))),
-        type = input$output_type,
+        type = as.numeric(input$output_type),
         topleftlabel = input$topleftlabel,
         title = input$title,
         footnote = input$footnote,
