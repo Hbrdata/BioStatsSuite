@@ -68,7 +68,7 @@ mod_dataUpload_sidebar_ui <- function(id) {
               style = "flex: 1;",
               tags$small("支持格式: .xlsx, .xls, .sas7bdat, .rda, .RData, .csv, .txt",
                          style = "color: #2c3e50; line-height: 1.4; display: block;"),
-              tags$small("最大文件大小: 5MB",
+              tags$small("最大文件大小: 150MB",
                          style = "color: #2c3e50; line-height: 1.4; display: block; margin-top: 4px;")
             )
           )
