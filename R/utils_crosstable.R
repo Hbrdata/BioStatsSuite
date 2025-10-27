@@ -293,7 +293,9 @@ c_crosstable <- function(inds,data_cond,group_c, missing, row_colvar, format,tab
   ft <- flextable::hline_bottom(ft,border = officer::fp_border(color="black",width=1.5),part="body")
   ft <- flextable::hline(ft,i=1,border = officer::fp_border(color="black",width=1),part="header")
   ft <- flextable::add_footer_lines(ft,footnote)
-  rm(table_out,envir = .GlobalEnv)
+  if (exists('table_out', envir = .GlobalEnv)) {
+    rm(table_out, envir = .GlobalEnv)
+  }
   ft <- flextable::autofit(ft)
   ft
 }

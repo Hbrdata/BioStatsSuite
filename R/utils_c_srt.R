@@ -381,8 +381,6 @@ c_srt <- function(inds, data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test
         n = n(),  # 计数每个组的观测值数量
       )
 
-    grpnames_ <- paste0("\u3000\u3000\u3000\u3000", grpnames_)
-
     title_0 <- dplyr::bind_rows(title_0,title_0_1)
     title_0$grp_name <- c(grpnames_,'合计')
     title_0$grp_n <- paste(title_0$grp_name,'\n(N = ',title_0$n, ')')

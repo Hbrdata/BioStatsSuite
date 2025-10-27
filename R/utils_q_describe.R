@@ -42,23 +42,6 @@ q_describe<-function(inds,data_cond,var_name,var_label,group_name,group_cond,tab
 {
 
   ##############根据条件创建数据框###########
-  ############## 处理 group_cond 参数 ##############
-  # 如果 group_cond 是字符串，按逗号分割并处理
-  if (is.character(group_cond) && length(group_cond) == 1) {
-    # 分割字符串并去除前后空格
-    group_cond <- unlist(strsplit(group_cond, ",\\s*"))
-    group_cond <- trimws(group_cond)
-
-    # 处理可能的中文引号或其他特殊字符
-    group_cond <- gsub("['\"`]", "", group_cond)  # 移除引号
-  }
-
-  # 检查 group_cond 是否有效
-  if (length(group_cond) == 0 || all(group_cond == "")) {
-    stop("分组条件 group_cond 无效或为空")
-  }
-
-  ##############根据条件创建数据框###########
   data_0 <- inds
 
 
@@ -243,16 +226,6 @@ q_describe<-function(inds,data_cond,var_name,var_label,group_name,group_cond,tab
     ft <- flextable::hline_bottom(ft, border = flextable::fp_border_default(color = "black", width = 1.5), part = "body")
     ft <- flextable::hline(ft, i = 1, border = flextable::fp_border_default(color = "black", width = 1), part = "header")
     ft <- flextable::add_footer_lines(ft, ftnote)
-
-
-    # 清理全局变量
-    if (exists('table_out', envir = .GlobalEnv)) {
-      rm(table_out, envir = .GlobalEnv)
-    }
-    if (exists('t_2', envir = .GlobalEnv)) {
-      rm(t_2, envir = .GlobalEnv)
-    }
-
     ft
   } else {
     NULL

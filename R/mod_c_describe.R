@@ -344,6 +344,11 @@ mod_c_describe_server <- function(id, data_upload_module){
         input$var_name
       }
 
+      # Check if the grouping condition is empty
+      if (input$group_name != "" && (is.null(input$group_cond) || length(input$group_cond) == 0 || all(input$group_cond == ""))) {
+        stop("分组条件无效或为空.请选择")
+      }
+
       list(
         data_cond = if (!is.null(data_upload_module()$filter_text) &&
                         data_upload_module()$filter_text != "") {

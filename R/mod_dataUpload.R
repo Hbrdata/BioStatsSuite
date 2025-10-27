@@ -47,7 +47,7 @@ mod_dataUpload_sidebar_ui <- function(id) {
         tags$div(
           style = "margin-bottom: 15px;",
           fileInput(ns("file"), "上传数据文件",
-                    accept = c(".xlsx", "xls", "sas7bdat", ".rda", ".RData", ".csv", ".txt"),
+                    accept = c(".xlsx", ".xls", ".sas7bdat", ".rda", ".RData", ".csv", ".txt"),
                     buttonLabel = "选择文件...",
                     placeholder = "Excel、SAS、CSV或R数据文件")
         ),
@@ -68,7 +68,7 @@ mod_dataUpload_sidebar_ui <- function(id) {
               style = "flex: 1;",
               tags$small("支持格式: .xlsx, .xls, .sas7bdat, .rda, .RData, .csv, .txt",
                          style = "color: #2c3e50; line-height: 1.4; display: block;"),
-              tags$small("最大文件大小: 150MB",
+              tags$small("最大文件大小: 400MB",
                          style = "color: #2c3e50; line-height: 1.4; display: block; margin-top: 4px;")
             )
           )
@@ -265,8 +265,8 @@ mod_dataUpload_server <- function(id){
       example_data_choices <- c(
         "描述性统计；分类变量描述" = "adsl",
         "秩和检验" = "tyypspa",
-        "组间/组内比较" = "cov_adur",
         "协方差分析" = "adts",
+        "组间/组内比较" = "cov_adur",
         "2*2列联表" = "adcrslb",
         "生存分析" = "adhj"
       )
@@ -401,6 +401,8 @@ mod_dataUpload_server <- function(id){
         showNotification("数据上传成功！", type = "message")
 
       }, error = function(e) {
+        message("文件读取错误详情: ", e$message)
+        message("错误堆栈: ", paste(traceback(), collapse = "\n"))
         showNotification(paste("上传错误:", e$message), type = "error")
       })
     })

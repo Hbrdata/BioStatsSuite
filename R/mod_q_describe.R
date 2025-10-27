@@ -69,7 +69,10 @@ mod_q_describe_ui <- function(id) {
                 width = "100%"),
 
       # 合计列选项
-      checkboxInput(ns("totalyn"), "显示合计列", value = TRUE)
+      checkboxInput(ns("totalyn"), "显示合计列", value = TRUE),
+
+      # 🆕：表格叠加选项
+      checkboxInput(ns("outyn"), "是否叠加表格", value = TRUE)
     )
   )
 }
@@ -278,6 +281,28 @@ mod_q_describe_server <- function(id, data_upload_module) {
         ""
       }
 
+      group_cond_processed <- if (!is.null(input$group_cond) && length(input$group_cond) > 0) {
+        if (is.character(input$group_cond) && length(input$group_cond) == 1) {
+          # 分割字符串并去除前后空格
+          group_cond <- unlist(strsplit(input$group_cond, ",\\s*"))
+          group_cond <- trimws(group_cond)
+
+          # 处理可能的中文引号或其他特殊字符
+          group_cond <- gsub("['\"`]", "", group_cond)  # 移除引号
+          group_cond
+        } else {
+          # 如果已经是向量，直接使用
+          input$group_cond
+        }
+      } else {
+        character(0)
+      }
+
+      # Check if the grouping condition is empty
+      if (input$group_name != "" && (is.null(input$group_cond) || length(input$group_cond) == 0 || all(input$group_cond == ""))) {
+        stop("分组条件无效或为空.请选择")
+      }
+
       list(
         data_cond = if (!is.null(data_upload_module()$filter_text) &&
                         data_upload_module()$filter_text != "") {
@@ -288,12 +313,14 @@ mod_q_describe_server <- function(id, data_upload_module) {
         var_name = input$var_name,
         var_label = input$var_label,
         group_name = input$group_name,
-        group_cond = group_cond_text,
+        group_cond = group_cond_processed,
         table_title = input$table_title,
         ftnote = input$ftnote,
         totalyn = as.numeric(input$totalyn),
+        # 🆕 新增：叠加表格选项
+        outyn = as.numeric(input$outyn),
 
-        # 🟢 新增：清空参数的方法
+
         clear_params = clear_parameters
       )
     }))

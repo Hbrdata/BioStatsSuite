@@ -113,10 +113,33 @@ mod_analyze_tabPanel_ui <- function(id) {
                         )
                  )
                )
+             ),
+
+             tags$br(),
+
+             tags$div(
+               style = "background-color: #e8f4f8;
+               padding: 12px;
+               border-radius: 6px;
+               margin-bottom: 15px;
+               border-left: 4px solid #3498db;
+               border: 1px solid #b8e0f0;",
+               tags$div(
+                 style = "display: flex; align-items: flex-start;",
+                 icon("info-circle", style = "color: #3498db; margin-right: 8px; margin-top: 2px; flex-shrink: 0;"),
+                 tags$div(
+                   style = "flex: 1;",
+                   tags$small("有多个分析结果时，可自行选择需要下载和清除的结果",
+                              style = "color: #2c3e50; line-height: 1.4;")
+                 )
+               )
+
              )
+
            )
   )
 }
+
 
 #' analyze Server Functions
 #'
@@ -124,11 +147,18 @@ mod_analyze_tabPanel_ui <- function(id) {
 mod_analyze_server <- function(id, data_upload_module) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
-    result <- reactiveVal(NULL)
+    # 🟢 修改：将单个结果改为结果列表
+    results_list <- reactiveVal(list())
+    # 🟢 新增：选中的结果索引
+    selected_results <- reactiveVal(integer(0))
 
-    # # 🟢 新增：定义 rv 响应式值
+    # 🟢 定义 rv 响应式值
     rv <- reactiveValues(
-      clearing_params = FALSE
+      clearing_params = FALSE,
+      # 🟢 新增：跟踪结果ID计数器
+      next_result_id = 1,
+      # 🟢 新增：用于防止重复触发的标志
+      toggle_processing = FALSE
     )
 
     # 创建响应式值来跟踪各个分析模块的服务器实例
@@ -150,18 +180,13 @@ mod_analyze_server <- function(id, data_upload_module) {
     # 监听分析类型变化
     observe({
       req(current_analysis_type())
-
-      # 调试信息
       message("Analysis type changed to: ", current_analysis_type())
-
     })
-
 
     # 动态渲染参数UI
     output$analysis_params <- renderUI({
       req(input$analysis_type)
 
-      # 如果分析类型为空或为默认选项，显示提示信息
       if (input$analysis_type == "") {
         return(
           tags$div(
@@ -173,7 +198,6 @@ mod_analyze_server <- function(id, data_upload_module) {
         )
       }
 
-      # 根据选择的分析类型渲染对应的UI
       switch(input$analysis_type,
              "q_describe" = mod_q_describe_ui(ns("q_describe_1")),
              "c_describe" = mod_c_describe_ui(ns("c_describe_1")),
@@ -302,10 +326,7 @@ mod_analyze_server <- function(id, data_upload_module) {
     crosstable_params <- mod_crosstable_server("crosstable_1", data_upload_module)
     lifetest_params <- mod_lifetest_server("lifetest_1", data_upload_module)
 
-
-
     observeEvent(input$run, {
-      # -------------
       message("=== 分析模块调试信息 ===")
       message("点击运行分析时间: ", Sys.time())
 
@@ -323,10 +344,6 @@ mod_analyze_server <- function(id, data_upload_module) {
         message("data_name: ", data_info$data_name)
         message("is_filtered: ", data_info$is_filtered)
       }
-      # -------------
-
-
-
 
       req(data_upload_module()$current_data)
       req(data_upload_module()$data_name)
@@ -335,7 +352,6 @@ mod_analyze_server <- function(id, data_upload_module) {
       tryCatch({
         data_name <- data_upload_module()$data_name
         current_data <- data_upload_module()$current_data
-
 
         print(paste("正在执行分析:", input$analysis_type))
         print(paste("数据名称:", data_name))
@@ -382,202 +398,268 @@ mod_analyze_server <- function(id, data_upload_module) {
         )
 
         if (!is.null(analysis_func)) {
-          result(analysis_func())
+          new_result <- analysis_func()
 
-          # 渲染分析结果
-          output$table_output <- renderUI({
-            ft <- result()
-            if (!is.null(ft)) {
-              if (is.list(ft) && length(ft) == 2) {
-                htmltools::HTML(
-                  paste(
-                    as.character(flextable::htmltools_value(ft[[1]])),
-                    as.character(flextable::htmltools_value(ft[[2]])),
-                    sep = "<br><br>"
-                  )
-                )
-              } else {
-                htmltools::HTML(as.character(flextable::htmltools_value(ft)))
-              }
-            }
-          })
+          # 🟢 修复：将新结果添加到结果列表中
+          current_results <- results_list()
+          result_id <- rv$next_result_id
+          rv$next_result_id <- rv$next_result_id + 1
 
-          showNotification("分析完成！", type = "message")
+          result_name <- paste0(get_analysis_name(input$analysis_type), " #", result_id)
+
+          # 🟢 修复：使用命名列表存储结果
+          current_results[[as.character(result_id)]] <- list(
+            id = result_id,
+            name = result_name,
+            analysis_type = input$analysis_type,
+            timestamp = Sys.time(),
+            flextable = new_result
+          )
+
+          results_list(current_results)
+
+          # 🟢 修复：自动选中新添加的结果
+          current_selected <- selected_results()
+          selected_results(c(current_selected, result_id))
+
+          showNotification("分析完成！结果已添加到列表中", type = "message")
         }
 
       }, error = function(e) {
-
-        # -----------------------------------
         message("分析错误详情: ", e$message)
         message("错误调用栈:")
         print(traceback())
-        # -----------------------------------
-
         showNotification(paste("分析错误:", e$message), type = "error")
       })
     })
 
+    # 🟢 修复：全选/取消全选功能
+    observeEvent(input$select_all_results, {
+      current_results <- results_list()
+      if (length(current_results) > 0) {
+        current_selected <- selected_results()
+        all_result_ids <- as.integer(names(current_results))
 
-    # 辅助函数：估算表格总宽度
-    estimate_table_width <- function(ft) {
-      if (inherits(ft, "flextable")) {
-        # 估算每列的宽度（假设平均字符宽度）
-        total_width <- 0
-        for (col_key in ft$col_keys) {
-          # 获取列名长度
-          col_name_width <- nchar(col_key) * 0.15  # 每个字符约0.15英寸
-          # 估算数据内容的最大宽度
-          data_width <- if (!is.null(ft$body$dataset)) {
-            max(nchar(as.character(ft$body$dataset[[col_key]])), na.rm = TRUE) * 0.12
-          } else {
-            1.0  # 默认宽度
-          }
-          # 取较大的值，加上一些边距
-          col_width <- max(col_name_width, data_width, 0.8) + 0.2
-          total_width <- total_width + col_width
+        if (length(current_selected) == length(all_result_ids)) {
+          # 如果已经全选，则取消全选
+          selected_results(integer(0))
+        } else {
+          # 否则全选所有结果
+          selected_results(all_result_ids)
         }
-        return(total_width)
       }
-      return(0)
-    }
+    })
 
-    # 辅助函数：检查表格是否需要横向页面
-    needs_landscape <- function(ft) {
-      if (inherits(ft, "flextable")) {
-        # 估算表格总宽度
-        table_width <- estimate_table_width(ft)
-        print(paste("表格估算宽度:", round(table_width, 2), "英寸"))
-
-        # 纵向页面可用宽度约为6.5英寸（考虑页边距）
-        # 如果表格宽度超过5.5英寸，使用横向页面
-        return(table_width > 5.5)
-      }
-      return(FALSE)
-    }
-
-    # 辅助函数：获取最宽的表格方向需求
-    get_orientation_for_tables <- function(ft_list) {
-      if (is.list(ft_list)) {
-        # 检查所有表格，如果有任何一个需要横向，就使用横向
-        any_landscape <- any(sapply(ft_list, needs_landscape))
-        return(ifelse(any_landscape, "landscape", "portrait"))
-      } else if (inherits(ft_list, "flextable")) {
-        return(ifelse(needs_landscape(ft_list), "landscape", "portrait"))
-      }
-      return("portrait")
-    }
-
-    # 辅助函数：自动调整表格宽度以适应页面
-    adjust_table_width <- function(ft, orientation) {
-      if (inherits(ft, "flextable")) {
-        # 根据页面方向设置最大宽度
-        max_width <- if (orientation == "landscape") 9.0 else 6.0
-
-        # 估算当前表格宽度
-        current_width <- estimate_table_width(ft)
-
-        if (current_width > max_width) {
-          # 需要缩放表格
-          scale_factor <- max_width / current_width
-          print(paste("表格缩放比例:", round(scale_factor, 2)))
-
-          # 应用缩放
-          ft <- flextable::width(ft, width = ft$col_keys %>%
-                                   lapply(function(x) scale_factor * 1.0) %>%
-                                   unlist())
-        }
-
-        # 设置自动换行
-        ft <- flextable::set_table_properties(ft, layout = "autofit")
-      }
-      return(ft)
-    }
-
-    # 🟢 新增：清除结果的观察器
+    # 🟢 修复：清除选中的结果
     observeEvent(input$clear_result, {
-      # 清除结果
-      result(NULL)
+      current_selected <- selected_results()
+      if (length(current_selected) == 0) {
+        showNotification("请先选择要清除的结果", type = "warning")
+        return()
+      }
 
-      # 清除表格输出
-      output$table_output <- renderUI({
+      current_results <- results_list()
+      if (length(current_results) > 0) {
+        # 🟢 修复：正确移除选中的结果
+        remaining_results <- current_results[!as.integer(names(current_results)) %in% current_selected]
+        results_list(remaining_results)
+        selected_results(integer(0))  # 清空选择
+
+        showNotification(paste("已清除", length(current_selected), "个结果"), type = "message")
+      }
+    })
+
+    # 🟢 修复：使用动态观察器处理单个选择
+    observe({
+      current_results <- results_list()
+
+      # 为每个结果创建观察器
+      lapply(current_results, function(result) {
+        toggle_id <- paste0("toggle_", result$id)
+
+        # 使用局部变量捕获当前结果ID
+        local_result_id <- result$id
+
+        observeEvent(input[[toggle_id]], {
+          # 防止重复处理
+          if (rv$toggle_processing) return()
+          rv$toggle_processing <- TRUE
+
+          # 延迟释放锁
+          on.exit({
+            invalidateLater(50)
+            observe({ rv$toggle_processing <- FALSE })
+          })
+
+          current_selected <- selected_results()
+
+          if (local_result_id %in% current_selected) {
+            # 取消选择
+            selected_results(current_selected[current_selected != local_result_id])
+            message("🔘 取消选择结果: ", local_result_id)
+          } else {
+            # 选择
+            selected_results(c(current_selected, local_result_id))
+            message("🔘 选择结果: ", local_result_id)
+          }
+        }, ignoreInit = TRUE)
+      })
+    })
+
+    # 🟢 修复：渲染结果列表和选择控件
+    output$table_output <- renderUI({
+      current_results <- results_list()
+      current_selected <- selected_results()
+
+      if (length(current_results) == 0) {
+        return(
+          tags$div(
+            style = "text-align: center; padding: 40px; color: #6c757d;",
+            icon("chart-bar", style = "font-size: 48px; margin-bottom: 20px;"),
+            tags$h4("暂无分析结果"),
+            tags$p("请点击\"运行分析\"按钮生成分析结果")
+          )
+        )
+      }
+
+      # 🟢 修复：选择控制面板
+      all_result_ids <- as.integer(names(current_results))
+      is_all_selected <- length(current_selected) == length(all_result_ids)
+
+      selection_panel <- tags$div(
+        style = "background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 15px; border: 1px solid #dee2e6;",
         tags$div(
-          style = "text-align: center; padding: 40px; color: #6c757d;",
-          icon("chart-bar", style = "font-size: 48px; margin-bottom: 20px;"),
-          tags$h4("暂无分析结果"),
-          tags$p("请在上传数据并设定好统计参数后，点击\"运行分析\"按钮生成分析结果")
+          style = "display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;",
+          tags$div(
+            style = "display: flex; align-items: center; gap: 10px;",
+            tags$strong("结果管理: "),
+            actionButton(ns("select_all_results"),
+                         label = if (is_all_selected) "取消全选" else "全选",
+                         style = "padding: 4px 8px; font-size: 12px;"),
+            tags$span(paste("已选择", length(current_selected), "/", length(current_results), "个结果"),
+                      style = "color: #6c757d; font-size: 14px;")
+          )
+        )
+      )
+
+      # 🟢 修复：按ID排序渲染所有结果
+      sorted_results <- current_results[order(as.integer(names(current_results)))]
+
+      result_elements <- lapply(sorted_results, function(result) {
+        is_selected <- result$id %in% current_selected
+
+        # 🟢 修复：使用正确的ID生成方式
+        toggle_id <- paste0("toggle_", result$id)
+
+        tags$div(
+          id = ns(paste0("result_", result$id)),
+          style = paste("border: 2px solid", if (is_selected) "#3498db" else "#e9ecef",
+                        "; padding: 15px; margin-bottom: 15px; border-radius: 8px;
+                       background-color:", if (is_selected) "#f0f8ff" else "white", ";"),
+
+          # 结果标题和选择按钮
+          tags$div(
+            style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #dee2e6;",
+            tags$div(
+              tags$strong(paste("分析类型:",result$name), style = "color: #2c3e50;"),
+              tags$br(),
+              # tags$small(paste("分析类型:", get_analysis_name(result$analysis_type)),
+              #            style = "color: #6c757d;"),
+              # tags$br(),
+              tags$small(paste("生成时间:", format(result$timestamp, "%Y-%m-%d %H:%M:%S")),
+                         style = "color: #6c757d;")
+            ),
+            tags$div(
+              actionButton(ns(toggle_id),
+                           label = if (is_selected) "取消选择" else "选择",
+                           style = paste("padding: 4px 8px; font-size: 12px;",
+                                         if (is_selected) "background-color: #e74c3c; color: white;"
+                                         else "background-color: #3498db; color: white;"))
+            )
+          ),
+
+          # 结果内容
+          if (is_selected) {
+            if (is.list(result$flextable) && length(result$flextable) == 2) {
+              htmltools::HTML(
+                paste(
+                  as.character(flextable::htmltools_value(result$flextable[[1]])),
+                  as.character(flextable::htmltools_value(result$flextable[[2]])),
+                  sep = "<br><br>"
+                )
+              )
+            } else {
+              htmltools::HTML(as.character(flextable::htmltools_value(result$flextable)))
+            }
+          } else {
+            tags$div(
+              style = "text-align: center; padding: 20px; color: #6c757d;",
+              icon("eye-slash"), "结果未选中 - 点击\"选择\"按钮显示内容"
+            )
+          }
         )
       })
 
-      showNotification("分析结果已清除", type = "message")
+      # 组合所有元素
+      tagList(
+        selection_panel,
+        result_elements
+      )
     })
 
-    # 🟢 修改：在运行分析时，如果结果区域为空，显示提示信息
-    output$table_output <- renderUI({
-      if (is.null(result())) {
-        tags$div(
-          style = "text-align: center; padding: 40px; color: #6c757d;",
-          icon("chart-bar", style = "font-size: 48px; margin-bottom: 20px;"),
-          tags$h4("暂无分析结果"),
-          tags$p("请点击\"运行分析\"按钮生成分析结果")
-        )
-      } else {
-        ft <- result()
-        if (!is.null(ft)) {
-          if (is.list(ft) && length(ft) == 2) {
-            htmltools::HTML(
-              paste(
-                as.character(flextable::htmltools_value(ft[[1]])),
-                as.character(flextable::htmltools_value(ft[[2]])),
-                sep = "<br><br>"
-              )
-            )
-          } else {
-            htmltools::HTML(as.character(flextable::htmltools_value(ft)))
-          }
-        }
-      }
-    })
-
-    # 下载处理函数
+    # 🟢 修复：下载处理函数 - 只下载选中的结果
     output$download_result <- downloadHandler(
       filename = function() {
         paste0("analysis_result_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".docx")
       },
       content = function(file) {
-        req(result())
-        ft <- result()
+        current_results <- results_list()
+        current_selected <- selected_results()
+
+        if (length(current_selected) == 0) {
+          showNotification("请先选择要下载的结果", type = "warning")
+          return()
+        }
 
         tryCatch({
-          # 如果结果是列表，合并所有表格
-          if (is.list(ft) && all(sapply(ft, function(x) inherits(x, "flextable")))) {
-            # 创建临时文件
-            temp_docx <- tempfile(fileext = ".docx")
+          # 创建新的Word文档
+          doc <- officer::read_docx()
 
-            # 创建新的Word文档
-            doc <- officer::read_docx()
+          # 🟢 修复：按ID排序获取选中的结果
+          selected_results_list <- current_results[as.character(current_selected)]
+          selected_results_list <- selected_results_list[order(as.integer(names(selected_results_list)))]
 
-            # 添加每个表格
-            for (i in seq_along(ft)) {
-              if (i > 1) {
-                # 在表格之间添加分页符
-                doc <- officer::body_add_break(doc)
-              }
-              doc <- flextable::body_add_flextable(doc, value = ft[[i]])
+          # 在添加表格前调整表格大小
+          for (i in seq_along(selected_results_list)) {
+            result <- selected_results_list[[i]]
+
+            # 调整表格以适应页面
+            if (is.list(result$flextable) && length(result$flextable) == 2) {
+
+              ft1 <- result$flextable[[1]]
+              doc <- flextable::body_add_flextable(doc, value = ft1)
+
+              ft2 <- result$flextable[[2]]
+              doc <- flextable::body_add_flextable(doc, value = ft2)
+            } else {
+              ft <- result$flextable
+              doc <- flextable::body_add_flextable(doc, value = ft)
             }
 
-            # 保存文档
-            print(doc, target = temp_docx)
-            file.copy(temp_docx, file)
-            unlink(temp_docx)
-          } else if (inherits(ft, "flextable")) {
-            # 单个表格的情况
-            doc <- officer::read_docx()
-            doc <- flextable::body_add_flextable(doc, value = ft)
-            print(doc, target = file)
-          } else {
-            showNotification("无法下载：结果格式不支持", type = "error")
+            # 添加连续分节符
+            if (i < length(selected_results_list)) {
+              ps <- officer::prop_section(type = "continuous")
+              doc <- officer::body_end_block_section(doc, officer::block_section(ps))
+            }
           }
+
+          # 保存文档
+          print(doc, target = file)
+
+          showNotification(paste("已成功下载", length(selected_results_list), "个分析结果"), type = "message")
+
         }, error = function(e) {
+          message("下载错误详情: ", e$message)
           showNotification(paste("下载错误:", e$message), type = "error")
         })
       }
@@ -585,12 +667,11 @@ mod_analyze_server <- function(id, data_upload_module) {
 
     return(reactive({
       list(
-        result = result(),
+        results_list = results_list(),
+        selected_results = selected_results(),
         current_analysis_type = current_analysis_type()
       )
     }))
-
-
   })
 }
 
