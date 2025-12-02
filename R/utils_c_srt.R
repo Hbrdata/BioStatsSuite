@@ -435,15 +435,21 @@ c_srt <- function(inds, data_cond,varlist,group_c,coltotal,rowtotal,outyn=1,test
       table_out <- table_out %>% dplyr::select(-dplyr::matches("P值"))
     }
 
+    # ----------------------------define param----------------------------
+    caption_paragraph <- flextable::as_paragraph(
+      flextable::as_chunk(table_title, props = officer::fp_text(font.family = "Times New Roman",font.size = 10.5))
+    )
 
-
+    caption_paragraph_props <- officer::fp_par(padding = 0)
+    # --------------------------------------------------------------------
 
     ft<-if(outyn==1){
       #绘制表格
 
       ft <- flextable::flextable(table_out)
       ft <- flextable::color(ft,part = 'footer', color = 'black')
-      ft <- flextable::set_caption(ft,caption = table_title)
+      ft <- flextable::set_caption(ft, caption = caption_paragraph,fp_p=caption_paragraph_props,align_with_table=TRUE)
+      ft <- flextable::set_table_properties(ft, align="left")
       ft<-flextable::font(ft,fontname="SimSun",part="all")
       ft<-flextable::font(ft,fontname="Times New Roman",part="all")
       ft<-flextable::hline_top(ft,border = officer::fp_border(color="black",width=1.5),part="header")

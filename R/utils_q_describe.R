@@ -18,8 +18,9 @@
 #' @importFrom dplyr filter select group_by summarise bind_rows n all_of
 #' @importFrom rlang parse_expr .data
 #' @importFrom stats median quantile sd setNames
-#' @importFrom flextable flextable set_caption font hline_top hline_bottom hline add_footer_lines
+#' @importFrom flextable flextable set_caption set_table_properties font hline_top hline_bottom hline add_footer_lines as_chunk
 #' @importFrom magrittr %>%
+#' @importFrom officer fp_text
 #' @noRd
 #示例
 
@@ -216,16 +217,32 @@ q_describe<-function(inds,data_cond,var_name,var_label,group_name,group_cond,tab
 
   table_out <<-table_out
 
+  # ----------------------------define param----------------------------
+  caption_paragraph <- flextable::as_paragraph(
+    flextable::as_chunk(table_title, props = officer::fp_text(font.family = "Times New Roman",font.size = 10.5))
+  )
+
+  caption_paragraph_props <- officer::fp_par(padding = 0)
+  # --------------------------------------------------------------------
+
   ft <- if (outyn == 1) {
     #绘制表格
     ft <- flextable::flextable(table_out)
     ft <- flextable::color(ft, part = 'footer', color = 'black')
-    ft <- flextable::set_caption(ft, caption = table_title)
+    ft <- flextable::set_caption(ft, caption = caption_paragraph,fp_p=caption_paragraph_props,align_with_table=TRUE)
+    ft <- flextable::set_table_properties(ft, align="left")
     ft <- flextable::font(ft, fontname = "Times New Roman", part = "all")
     ft <- flextable::hline_top(ft, border = flextable::fp_border_default(color = "black", width = 1.5), part = "header")
     ft <- flextable::hline_bottom(ft, border = flextable::fp_border_default(color = "black", width = 1.5), part = "body")
     ft <- flextable::hline(ft, i = 1, border = flextable::fp_border_default(color = "black", width = 1), part = "header")
     ft <- flextable::add_footer_lines(ft, ftnote)
+    if (exists('table_out', envir = .GlobalEnv)) {
+      rm(table_out, envir = .GlobalEnv)
+    }
+    if (exists('t_2', envir = .GlobalEnv)) {
+      rm(t_2, envir = .GlobalEnv)
+    }
+
     ft
   } else {
     NULL

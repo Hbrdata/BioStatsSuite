@@ -69,10 +69,11 @@ mod_q_describe_ui <- function(id) {
                 width = "100%"),
 
       # 合计列选项
-      checkboxInput(ns("totalyn"), "显示合计列", value = TRUE),
+      checkboxInput(ns("totalyn"), "显示合计列", value = TRUE)
 
       # 🆕：表格叠加选项
-      checkboxInput(ns("outyn"), "是否叠加表格", value = TRUE)
+      # ,checkboxInput(ns("outyn"), "是否叠加表格", value = TRUE)
+
     )
   )
 }
@@ -318,7 +319,7 @@ mod_q_describe_server <- function(id, data_upload_module) {
         ftnote = input$ftnote,
         totalyn = as.numeric(input$totalyn),
         # 🆕 新增：叠加表格选项
-        outyn = as.numeric(input$outyn),
+        # outyn = as.numeric(input$outyn),
 
 
         clear_params = clear_parameters

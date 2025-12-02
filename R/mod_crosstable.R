@@ -91,6 +91,8 @@ mod_crosstable_ui <- function(id) {
                 value = "",
                 placeholder = "输入表格底注",
                 width = "100%")
+
+
     )
   )
 }

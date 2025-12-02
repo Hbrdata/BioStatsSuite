@@ -86,6 +86,7 @@ mod_lifetest_ui <- function(id) {
       textInput(ns("topleftlabel"), "左列标签", value = "指标"),
       textInput(ns("title"), "表格标题", value = "生存分析结果"),
       textInput(ns("footnote"), "表格底注", value = "")
+
     )
   )
 }

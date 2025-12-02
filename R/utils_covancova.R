@@ -228,12 +228,26 @@ covancova <- function(inds,data_cond,group_c,varlist,title1,title2,footnote1,foo
 
   table_out_2 <- dplyr::bind_rows(t_2_title,t_2_1,t_2_2)
 
+  # ----------------------------define param----------------------------
+  caption_paragraph1 <- flextable::as_paragraph(
+    flextable::as_chunk(title1, props = officer::fp_text(font.family = "Times New Roman",font.size = 10.5))
+  )
+
+  caption_paragraph2 <- flextable::as_paragraph(
+    flextable::as_chunk(title2, props = officer::fp_text(font.family = "Times New Roman",font.size = 10.5))
+  )
+
+  caption_paragraph_props <- officer::fp_par(padding = 0)
+  # --------------------------------------------------------------------
+
+
 
   #绘制表格
 
   ft1 <- flextable::flextable(table_out_1)
   ft1 <- flextable::color(ft1,part = 'footer', color = 'black')
-  ft1 <- flextable::set_caption(ft1,caption = title1)
+  ft1 <- flextable::set_caption(ft1, caption = caption_paragraph1,fp_p=caption_paragraph_props,align_with_table=TRUE)
+  ft1 <- flextable::set_table_properties(ft1, align="left")
   ft1 <- flextable::font(ft1,fontname="SimSun",part="all")
   ft1 <- flextable::font(ft1,fontname="Times New Roman",part="all")
   ft1 <- flextable::hline_top(ft1,border = officer::fp_border(color="black",width=1.5),part="header")
@@ -245,7 +259,8 @@ covancova <- function(inds,data_cond,group_c,varlist,title1,title2,footnote1,foo
 
   ft2 <- flextable::flextable(table_out_2)
   ft2 <- flextable::color(ft2,part = 'footer', color = 'black')
-  ft2 <- flextable::set_caption(ft2,caption = title2)
+  ft2 <- flextable::set_caption(ft2, caption = caption_paragraph2,fp_p=caption_paragraph_props,align_with_table=TRUE)
+  ft2 <- flextable::set_table_properties(ft2, align="left")
   ft2 <- flextable::font(ft2,fontname="SimSun",part="all")
   ft2 <- flextable::font(ft2,fontname="Times New Roman",part="all")
   ft2 <- flextable::hline_top(ft2,border = officer::fp_border(color="black",width=1.5),part="header")

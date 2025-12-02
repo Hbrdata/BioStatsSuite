@@ -104,6 +104,7 @@ mod_covancova_ui <- function(id) {
                 value = "",
                 placeholder = "输入表格2底注",
                 width = "100%")
+
     )
   )
 }

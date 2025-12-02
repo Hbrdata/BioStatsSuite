@@ -65,6 +65,7 @@ mod_c_srt_ui <- function(id) {
           checkboxInput(ns("test_in"), "组内比较", value = FALSE),
           textInput(ns("table_title"), "表格标题", value = "秩和检验结果"),
           textInput(ns("ftnote"), "表格底注", value = "")
+
             )
   )
 }
