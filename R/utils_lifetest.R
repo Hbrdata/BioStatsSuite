@@ -275,14 +275,21 @@ lifetest <- function(inds,data_cond,group_c,censor,time_label,timelist,type,topl
 
   table_out <- result_0
 
+  # ----------------------------define param----------------------------
+  caption_paragraph <- flextable::as_paragraph(
+    flextable::as_chunk(title, props = officer::fp_text(font.family = "Times New Roman",font.size = 10.5))
+  )
 
+  caption_paragraph_props <- officer::fp_par(padding = 0)
+  # --------------------------------------------------------------------
 
   #绘制表格
 
   ft <- flextable::flextable(table_out)
   # ft <- theme_vanilla(ft)
   ft <- flextable::color(ft,part = 'footer', color = 'black')
-  ft <- flextable::set_caption(ft,caption = title)
+  ft <- flextable::set_caption(ft, caption = caption_paragraph,fp_p=caption_paragraph_props,align_with_table=TRUE)
+  ft <- flextable::set_table_properties(ft, align="left")
   # ft<-font(ft,fontname="SimSun",part="all")
   # ft<-font(ft,fontname="Times New Roman",part="all")
   ft<-flextable::hline_top(ft,border = flextable::fp_border_default(color="black",width=1.5),part="header")

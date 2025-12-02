@@ -7,6 +7,7 @@
 #' @noRd
 #' @param file_path Path to the Rda file
 #' @return Data frame extracted from the Rda file
+#' @importFrom readr read_delim
 
 extract_data_from_rda <- function(file_path) {
   # 创建一个新的环境来加载Rda文件
@@ -49,7 +50,7 @@ detect_delimiter <- function(file_path, n_lines = 10) {
   }
 
   # 统计各种分隔符的出现频率
-  delimiters <- c(",", ";", "\t", "|")
+  delimiters <- c(",", ";", "\t", "|","$")
   delimiter_counts <- sapply(delimiters, function(delim) {
     sum(sapply(lines, function(line) {
       # 排除引号内的内容，避免将引号内的分隔符计入
@@ -155,7 +156,6 @@ read_data_file <- function(file_path, file_name, file_header = TRUE) {
     message(sprintf("读取CSV/TXT文件 - 分隔符: '%s', 小数点: '%s', 表头: %s",
                     delimiter, decimal_info$decimal, file_header))
 
-    # 🟢 修复：如果小数点是逗号，需要特殊处理
     if (decimal_info$decimal == ",") {
       # 使用 read.csv2 来处理逗号作为小数点的情况
       df <- read.csv2(file_path,
@@ -164,15 +164,15 @@ read_data_file <- function(file_path, file_name, file_header = TRUE) {
                       stringsAsFactors = FALSE,
                       fileEncoding = "UTF-8",
                       na.strings = c("", "NA", "NULL", "N/A"))
-    } else {
+    }  else {
       # 使用 read.csv 来处理点号作为小数点的情况
-      df <- read.csv(file_path,
-                     sep = delimiter,
-                     dec = decimal_info$decimal,
-                     header = file_header,
-                     stringsAsFactors = FALSE,
-                     fileEncoding = "UTF-8",
-                     na.strings = c("", "NA", "NULL", "N/A"))
+        df <- read.csv(file_path,
+                       sep = delimiter,
+                       dec = decimal_info$decimal,
+                       header = file_header,
+                       stringsAsFactors = FALSE,
+                       fileEncoding = "UTF-8",
+                       na.strings = c("", "NA", "NULL", "N/A"))
     }
 
     # 添加数据框有效性检查

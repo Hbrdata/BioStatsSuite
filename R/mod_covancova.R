@@ -104,6 +104,7 @@ mod_covancova_ui <- function(id) {
                 value = "",
                 placeholder = "输入表格2底注",
                 width = "100%")
+
     )
   )
 }
@@ -381,6 +382,11 @@ mod_covancova_server <- function(id, data_upload_module){
         input$site_var, "/", input$site_label, "|",
         input$base_var, "/", input$base_label
       )
+
+      # Check if the grouping condition is empty
+      if (input$group_var != "" && (is.null(input$group_cond) || length(input$group_cond) == 0 || all(input$group_cond == ""))) {
+        stop("分组条件无效或为空.请选择")
+      }
 
       list(
         data_cond = data_cond,

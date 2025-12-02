@@ -65,6 +65,7 @@ mod_c_srt_ui <- function(id) {
           checkboxInput(ns("test_in"), "组内比较", value = FALSE),
           textInput(ns("table_title"), "表格标题", value = "秩和检验结果"),
           textInput(ns("ftnote"), "表格底注", value = "")
+
             )
   )
 }
@@ -298,6 +299,11 @@ mod_c_srt_server <- function(id, data_upload_module){
         paste0(input$var_name, "|", input$var_label)
       } else {
         input$var_name
+      }
+
+      # Check if the grouping condition is empty
+      if (input$group_var != "" && (is.null(input$group_cond) || length(input$group_cond) == 0 || all(input$group_cond == ""))) {
+        stop("分组条件无效或为空.请选择")
       }
 
       list(

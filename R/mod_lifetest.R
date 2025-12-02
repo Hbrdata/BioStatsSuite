@@ -86,6 +86,7 @@ mod_lifetest_ui <- function(id) {
       textInput(ns("topleftlabel"), "左列标签", value = "指标"),
       textInput(ns("title"), "表格标题", value = "生存分析结果"),
       textInput(ns("footnote"), "表格底注", value = "")
+
     )
   )
 }
@@ -337,6 +338,11 @@ mod_lifetest_server <- function(id, data_upload_module){
         paste0(input$time_var, "|", input$time_label)
       } else {
         input$time_var
+      }
+
+      # Check if the grouping condition is empty
+      if (input$group_var != "" && (is.null(input$group_cond) || length(input$group_cond) == 0 || all(input$group_cond == ""))) {
+        stop("分组条件无效或为空.请选择")
       }
 
       list(

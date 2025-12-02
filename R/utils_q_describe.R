@@ -18,8 +18,9 @@
 #' @importFrom dplyr filter select group_by summarise bind_rows n all_of
 #' @importFrom rlang parse_expr .data
 #' @importFrom stats median quantile sd setNames
-#' @importFrom flextable flextable set_caption font hline_top hline_bottom hline add_footer_lines
+#' @importFrom flextable flextable set_caption set_table_properties font hline_top hline_bottom hline add_footer_lines as_chunk
 #' @importFrom magrittr %>%
+#' @importFrom officer fp_text
 #' @noRd
 #示例
 
@@ -40,23 +41,6 @@
 
 q_describe<-function(inds,data_cond,var_name,var_label,group_name,group_cond,table_title,ftnote,totalyn,outyn=1)
 {
-
-  ##############根据条件创建数据框###########
-  ############## 处理 group_cond 参数 ##############
-  # 如果 group_cond 是字符串，按逗号分割并处理
-  if (is.character(group_cond) && length(group_cond) == 1) {
-    # 分割字符串并去除前后空格
-    group_cond <- unlist(strsplit(group_cond, ",\\s*"))
-    group_cond <- trimws(group_cond)
-
-    # 处理可能的中文引号或其他特殊字符
-    group_cond <- gsub("['\"`]", "", group_cond)  # 移除引号
-  }
-
-  # 检查 group_cond 是否有效
-  if (length(group_cond) == 0 || all(group_cond == "")) {
-    stop("分组条件 group_cond 无效或为空")
-  }
 
   ##############根据条件创建数据框###########
   data_0 <- inds
@@ -233,19 +217,25 @@ q_describe<-function(inds,data_cond,var_name,var_label,group_name,group_cond,tab
 
   table_out <<-table_out
 
+  # ----------------------------define param----------------------------
+  caption_paragraph <- flextable::as_paragraph(
+    flextable::as_chunk(table_title, props = officer::fp_text(font.family = "Times New Roman",font.size = 10.5))
+  )
+
+  caption_paragraph_props <- officer::fp_par(padding = 0)
+  # --------------------------------------------------------------------
+
   ft <- if (outyn == 1) {
     #绘制表格
     ft <- flextable::flextable(table_out)
     ft <- flextable::color(ft, part = 'footer', color = 'black')
-    ft <- flextable::set_caption(ft, caption = table_title)
+    ft <- flextable::set_caption(ft, caption = caption_paragraph,fp_p=caption_paragraph_props,align_with_table=TRUE)
+    ft <- flextable::set_table_properties(ft, align="left")
     ft <- flextable::font(ft, fontname = "Times New Roman", part = "all")
     ft <- flextable::hline_top(ft, border = flextable::fp_border_default(color = "black", width = 1.5), part = "header")
     ft <- flextable::hline_bottom(ft, border = flextable::fp_border_default(color = "black", width = 1.5), part = "body")
     ft <- flextable::hline(ft, i = 1, border = flextable::fp_border_default(color = "black", width = 1), part = "header")
     ft <- flextable::add_footer_lines(ft, ftnote)
-
-
-    # 清理全局变量
     if (exists('table_out', envir = .GlobalEnv)) {
       rm(table_out, envir = .GlobalEnv)
     }

@@ -9,7 +9,7 @@ app_server <- function(input, output, session) {
   analyze_result <- mod_analyze_server("analyze_1", data_upload)
 
 
-  options(shiny.maxRequestSize = 150*1024^2)
+  options(shiny.maxRequestSize = 400*1024^2)
 
   # 创建响应式值存储当前分析类型
   rv <- reactiveValues(
