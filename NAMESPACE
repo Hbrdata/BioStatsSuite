@@ -12,9 +12,13 @@ importFrom(golem,
 )
 importFrom(readr,read_delim)
 importFrom(shiny,
+  HTML,
   NS,
+  column,
   shinyApp,
-  tagList
+  tagAppendAttributes,
+  tagList,
+  tags
 )
 importFrom(showtext,showtext_auto)
 importFrom(stats,
