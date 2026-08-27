@@ -1,13 +1,24 @@
 Package: BioStatsSuite
-Title: {{ Title }}
+Title: BioStatsSuite
 Version: 1.0.0
-Authors@R: 
-    person("Jo", "Doe", , "jodoe@dom.ain", role = c("aut", "cre"))
-Maintainer: {{ Maintainer }}
-Description: {{ Description }}
-License: {{ License }}
-URL: {{ URL }}
-BugReports: {{ BugReports }}
+Authors@R: person(
+    given = "Jo",
+    family = "Doe",
+    email = "jodoe@dom.ain",
+    role = c("aut", "cre")
+)
+Maintainer: Jo Doe <jodoe@dom.ain>
+Description: BioStatsSuite is an R Shiny application for bio-statistical
+    analysis, including descriptive statistics, parametric/non-parametric
+    tests, survival analysis, and report generation for clinical research.
+License: MIT + file LICENSE
+URL: https://github.com/Hbrdata/BioStatsSuite
+BugReports: https://github.com/Hbrdata/BioStatsSuite/issues
+RemoteType: github
+RemoteHost: api.github.com
+RemoteRepo: BioStatsSuite
+RemoteUsername: hbrdata
+RemoteRef: HEAD
 Imports: 
     car,
     config,
