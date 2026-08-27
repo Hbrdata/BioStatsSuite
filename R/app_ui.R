@@ -74,6 +74,25 @@ app_ui <- function(request) {
             mod_analyze_tabPanel_ui("analyze_1")
           )
         )
+      ),
+
+      # 报告导出标签页
+      tabPanel(
+        title = tags$span(
+          style = "font-size: 18px;",
+          icon("file-word"),
+          "报告导出"
+        ),
+        fluidRow(
+          column(
+            width = 3,
+            mod_report_config_sidebar_ui("report_config_1")
+          ),
+          column(
+            width = 9,
+            mod_report_config_tabPanel_ui("report_config_1")
+          )
+        )
       )
     )
 

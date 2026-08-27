@@ -75,10 +75,16 @@ mod_lifetest_pic_ui <- function(id) {
       tags$div(
         style = "margin-bottom: 15px;",
         selectizeInput(ns("output_type"), "输出类型",
-                       choices = c("生存率" = 0, "失效率" = 1),
-                       selected = 0,
+                       choices = c(
+                         "生存率 (Survival)" = "survival",
+                         "失效率 (Risk)" = "risk",
+                         "累积风险 (Cumulative Hazard)" = "cumhaz",
+                         "互补双对数 (Complementary Log-Log)" = "cloglog"
+                       ),
+                       selected = "survival",
                        multiple = FALSE,
-                       options = list(placeholder = '选择输出类型'))
+                       options = list(placeholder = '选择输出类型')
+        )
       ),
 
       # Y轴标签
@@ -89,6 +95,26 @@ mod_lifetest_pic_ui <- function(id) {
       # 图片标题
       textInput(ns("pic_title"), "图片标题", value = "生存分析图",
                 placeholder = "设置图片标题",
+                width = "100%"),
+
+      # 颜色
+      textInput(ns("color"), "曲线颜色", value = "blue|red",
+                placeholder = "用|分隔，如: blue|red|green",
+                width = "100%"),
+
+      # 线型
+      textInput(ns("lintype"), "曲线线型", value = "solid|dashed",
+                placeholder = "用|分隔，如: solid|dashed|dotted",
+                width = "100%"),
+
+      # 删失标记
+      textInput(ns("marktype"), "删失标记", value = "circle|triangle",
+                placeholder = "用|分隔，如: circle|triangle",
+                width = "100%"),
+
+      # 底注
+      textInput(ns("footnote"), "底注内容", value = "",
+                placeholder = "设置底注内容",
                 width = "100%")
 
     )
@@ -140,10 +166,14 @@ mod_lifetest_pic_server <- function(id, data_upload_module) {
       updateTextInput(session, "y_label", value = "生存率(%)")
       updateTextInput(session, "pic_title", value = "生存分析图")
       updateTextInput(session, "timelist", value = "")
+      updateTextInput(session, "color", value = "blue|red")
+      updateTextInput(session, "lintype", value = "solid|dashed")
+      updateTextInput(session, "marktype", value = "circle|triangle")
+      updateTextInput(session, "footnote", value = "")
 
       # 重置数值输入
       updateNumericInput(session, "censor_value", value = 0)
-      updateSelectizeInput(session, "output_type", selected = 0)
+      updateSelectizeInput(session, "output_type", selected = "survival")
 
       # 延迟重置清空参数标志
       shinyjs::delay(500, {
@@ -220,6 +250,9 @@ mod_lifetest_pic_server <- function(id, data_upload_module) {
           updateTextInput(session, "timelist", value = "0,2,4,6,10,14,18,24,48,72")
           updateTextInput(session, "y_label", value = "流感症状未缓解率(%)")
           updateTextInput(session, "pic_title", value = "各时点流感症状缓解率的Kaplan-Meier估计（FAS）")
+          updateTextInput(session, "color", value = "blue|red")
+          updateTextInput(session, "lintype", value = "solid|shortdash")
+          updateTextInput(session, "marktype", value = "circle|triangle")
         }
 
         # 更新状态跟踪
@@ -346,12 +379,16 @@ mod_lifetest_pic_server <- function(id, data_upload_module) {
         },
         group_c = group_cond_text,
         censor = input$censor_var,
-        type = as.numeric(input$output_type),
+        type = input$output_type,
         time_label = time_label_text,
         timelist = as.numeric(unlist(strsplit(input$timelist, ",\\s*"))),
         censorvalue = as.numeric(input$censor_value),
         ylabel = input$y_label,
         pic_title = input$pic_title,
+        color    = input$color,
+        lintype  = input$lintype,
+        marktype = input$marktype,
+        footnote = input$footnote,
 
         # 清空参数的方法
         clear_params = clear_parameters

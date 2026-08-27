@@ -1,310 +1,191 @@
-#' lifetest
-#'
-#' @description A utils function
-#'
-#' @return The return value, if any, from executing the utility.
-#'
-#' @importFrom dplyr filter select group_by summarise
-#' @importFrom rlang sym parse_expr
-#' @importFrom survival survfit Surv survdiff
-#' @importFrom flextable flextable set_caption font hline_top hline_bottom hline fp_border_default add_footer_lines autofit
-#' @importFrom officer fp_border
-#' @noRd
-#######生存分析表格#########
-
-# 用途：输出生存分析表，进行log-rank检验
-
-#基本参数：
-# data_cond=                 要分析的数据集|<条件>
-# group_c=                   组别变量|组别1/组别2/……；不能为缺失
-# censor                     删失变量
-# time_label                 时间|时间变量的label；时间不能为空值，负值；
-# timelist                   指定一系列的时间点
-# type                        =0时输出生存率，=1时输出失效率
-# topleftlabel                最左列的表格的列名
-# title                       输出的表格的title
-# footnote                   输出脚注内容
-
-#示例
-
-# adhj <- read_excel("E:/Rlanguage/2 - system/函数/8.lifetest/SAS程序与数据/adhj.xlsx")
+# =============================================================================
+# utils_lifetest.R
+# 生存分析表格函数（R 包内部版本）
 #
-# lifetest(
-#   data_cond="adhj|RANDYN=='是' & FAS=='是'  & fxyn==1 & anafl=='是'"
-#   ,group_c="arm3|试验组/对照组"
-#   ,censor="censor"
-#   ,time_label="lgzzhj|流感症状缓解时间（h）"
-#   ,timelist=c(0,2,4,6,10,14,18,24,48,72)
-#   ,type=1
-#   ,topleftlabel="指标"
-#   ,title="各时点流感症状缓解率的Kaplan-Meier估计（FAS）"
-#   ,footnote="仅对疗前存在流感症状评分>1分且评价过程中体温存在>37.2℃的受试者进行分析。"
-# )
+# 对时间-事件数据进行 Kaplan-Meier 生存分析，
+# 输出指定时间点的生存率/失效率、分位数、删失率，并进行 Log-Rank 检验。
+# =============================================================================
 
+#' 生存分析表格
+#'
+#' @param inds         数据框对象
+#' @param data_cond    数据筛选条件
+#' @param group_c      分组描述："分组变量名|组名1/组名2/..."
+#' @param censor       删失变量名（1=事件发生，0=删失）
+#' @param time_label   时间描述："时间变量名|时间变量标签"
+#' @param timelist     时间点列表（数值向量）
+#' @param type         0=生存率，1=失效率
+#' @param topleftlabel 第一列列标题
+#' @param title        表格标题
+#' @param footnote     底注内容
+#'
+#' @return flextable 对象
+#' @noRd
+lifetest <- function(inds, data_cond, group_c, censor, time_label, timelist,
+                     type, topleftlabel, title, footnote) {
 
+  # ============================================================
+  # Step 1：解析参数
+  # ============================================================
+  grp_parts <- strsplit(group_c, "|", fixed = TRUE)[[1]]
+  grpvar    <- trimws(grp_parts[1])
+  grpnames  <- trimws(strsplit(grp_parts[2], "/", fixed = TRUE)[[1]])
+  grpnames  <- grpnames[nchar(grpnames) > 0]
+  grp_num   <- length(grpnames)
 
+  tl_parts <- strsplit(time_label, "|", fixed = TRUE)[[1]]
+  time_var <- trimws(tl_parts[1])
+  time_lbl <- trimws(tl_parts[2])
 
-
-lifetest <- function(inds,data_cond,group_c,censor,time_label,timelist,type,topleftlabel,title,footnote)
-{
-  ################## 拆分组别、分析变量 ################################
-
-
-  #拆分组别变量，组别名称；计算组别个数
-  grp_part <- unlist(strsplit(group_c,"|",fixed = TRUE))
-  grpvar_ <- grp_part[1]
-  grpnames_ <- grp_part[2]
-
-
-  grpnames_ <- unlist(strsplit(grpnames_,"/",fixed = TRUE))
-
-  #建立list来存储连续生成的组别名称
-  cat_grpname <- list()
-  s_ <- 1
-  while (s_ <= length(grpnames_) && grpnames_[s_] != "") {
-    cat_grpname[[s_]] <- grpnames_[s_]
-    s_ <- s_ + 1
-    grp_num=s_ - 1
-  }
-
-  ###########制作分析数据集###############
-  #拆分分析变量和标签
-  timevarlabel_part <- unlist(strsplit(time_label,"|",fixed = TRUE))
-  timevar_ <- timevarlabel_part[1]
-  timelabel_ <- timevarlabel_part[2]
-
-  #直接传递数据对象，不再使用get(data_name)的形式获取数据,避免无法获得交互数据
-  cond_ <- data_cond
-
-
+  # ============================================================
+  # Step 2：筛选数据
+  # ============================================================
   data_0 <- inds
-  data_0 <- data_0 %>%
-    dplyr::filter(!!rlang::parse_expr(cond_))
-  group_cond <- c(grpnames_)
-  data_0 <- data_0 %>%
-    dplyr::filter(.data[[grpvar_]] %in% group_cond )
-  time_var_expr <- rlang::sym(timevar_)
-  censor_var_expr <- rlang::sym(censor)
-  group_expr <- rlang::sym(grpvar_)
+  data_0 <- data_0 |> dplyr::filter(!!rlang::parse_expr(data_cond))
+  data_0 <- data_0 |> dplyr::filter(.data[[grpvar]] %in% grpnames)
 
-  d_0 <- data_0 %>%
-    dplyr::select({{time_var_expr}},{{censor_var_expr}},{{group_expr}})
-  d_0 <- setNames(d_0,c("time_0","censor_0","group_0"))
-  d_0$grpcd_ <- NA
-  for(i in 1:nrow(d_0)){
-    for (s_ in 1:grp_num){
-      if (d_0$group_0[i] == cat_grpname[[s_]]){
-        d_0$grpcd_[i] <- s_
-      }
-    }
-  }
+  d_0 <- data_0 |>
+    dplyr::select(dplyr::all_of(c(time_var, censor, grpvar))) |>
+    stats::setNames(c("time_0", "censor_0", "group_0")) |>
+    dplyr::mutate(grp_cd = match(group_0, grpnames))
 
+  # ============================================================
+  # Step 3：KM 生存分析 + Log-Rank 检验
+  # ============================================================
+  surv_obj    <- survival::Surv(d_0$time_0, d_0$censor_0)
+  fit_summary <- summary(
+    survival::survfit(surv_obj ~ grp_cd, conf.type = "log-log", data = d_0),
+    times = timelist
+  )
+  logrank <- survival::survdiff(surv_obj ~ grp_cd, data = d_0)
+  lr_stat <- sprintf("%.2f", logrank$chisq)
+  lr_p    <- sprintf("%.4f", 1 - stats::pchisq(logrank$chisq, df = length(logrank$n) - 1))
 
-  #计算各个组别的N
-  title_0 <- d_0 %>%
-    dplyr::group_by(grpcd_) %>%
-    dplyr::summarise(
-      n = n(),  # 计数每个组的观测值数量
-    )
-
-  title_0$grp_name <- NA
-  for (i in 1:nrow(title_0)){
-    if (title_0$grpcd_[i] == i){
-      title_0$grp_name[i] <- cat_grpname[i]
-    }
-  }
-  title_0$grp_n <- NA
-
-  title_0$grp_n <- paste(title_0$grp_name,'\n(N = ',title_0$n, ')')
-
-  title_0_1 <- data.frame(matrix(ncol = ncol(title_0),nrow = 1))
-  names(title_0_1) <- names(title_0)
-
-  title_0 <- rbind(title_0_1,title_0)
-  title_0[1,4] <- "指标"
-  title_0 <- title_0 %>%
-    dplyr::select(grp_n)
-  title_0 <- t(title_0)
-
-
-
-  #################### 生存分析结果 ##########
-
-  fit <- summary(survival::survfit(survival::Surv(time_0,censor_0)~grpcd_,conf.type="log-log",data = d_0),times = timelist)
-  # print(fit)
-  logrank_test <- survival::survdiff(survival::Surv(time_0,censor_0)~grpcd_,data = d_0)
-  # print(logrank_test)
-
-
-  #结果制表
-  col_names <- title_0[1, ]
-
-  result_0 <- matrix(NA,nrow=length(timelist)+7,ncol = length(title_0))
-  result_0 <- data.frame(result_0)
-  colnames(result_0) <- col_names
-
-  time_num <- length(timelist)
-  for (i in 1:time_num) {
-    result_0[i+1,1] <- paste0("\u3000", timelist[i])
-  }
-
-  result_0[1,1] <- paste(timelabel_,"(Log-Rank=",sprintf("%.2f",logrank_test$chisq),",","P=",sprintf("%.4f",logrank_test$pvalue),")")
-
-  survival_result <- data.frame(fit$strata,fit$time,fit$surv,fit$lower,fit$upper)
-
-  survival_result$fit.strata <- as.character(survival_result$fit.strata)
-  for(i in 1:nrow(survival_result)){
-    survival_result$grp_cd[i] <- unlist(strsplit(survival_result$fit.strata[i],"=",fixed = TRUE))[2]
-  }
-
-  for (i in 1:nrow(survival_result)) {
-    for (s_ in 1:grp_num) {
-      if (survival_result$grp_cd[i]==s_){
-        survival_result$grp_name[i] <- grpnames_[s_]
-      }
-    }
-  }
-
-
-  if (type == 0){
-    survival_result$surv <- sprintf("%.2f",survival_result$fit.surv*100)
-    survival_result$lower <- sprintf("%.2f",survival_result$fit.lower*100)
-    survival_result$upper <- sprintf("%.2f",survival_result$fit.upper*100)
-  }else {
-    if (type == 1){
-      survival_result$surv <- sprintf("%.2f",(1-survival_result$fit.surv)*100)
-      survival_result$lower <- sprintf("%.2f",(1-survival_result$fit.upper)*100)
-      survival_result$upper <- sprintf("%.2f",(1-survival_result$fit.lower)*100)
-    }
-  }
-
-  for (i in 1:nrow(survival_result)){
-    if (is.na(survival_result$fit.surv[i])){
-      survival_result$surv[i] <- "0.00"
-    }
-    if (is.na(survival_result$fit.lower[i])){
-      survival_result$lower[i] <- "0.00"
-    }
-    if (is.na(survival_result$fit.upper[i])){
-      survival_result$upper[i] <- "0.00"
-    }
-  }
-
-  survival_result$surv_0 <- paste(survival_result$surv,"(",survival_result$lower,",",survival_result$upper,")")
-
-  survival_result_1 <- survival_result %>%
-    dplyr::select(fit.time,grp_cd,grp_name,surv,lower,upper,surv_0)
-
-  survival_list <- list()
-  for (i in 1:grp_num){
-    survival_list[[i]] <- survival_result_1 %>%
-      dplyr::filter(grp_cd == i)
-  }
-
-  for (i in 1:time_num){
-    for (s_ in 1:grp_num){
-      result_0[(1+i),(1+s_)] <- survival_list[[s_]]$surv_0[i]
-
-    }
-  }
-
-  quantile_25_label <- paste0("\u3000","25%分位数(95%CI)")
-  quantile_50_label <- paste0("\u3000","50%分位数(95%CI)")
-  quantile_75_label <- paste0("\u3000","75%分位数(95%CI)")
-  censor_rate_label <- paste0("\u3000","删失率(%)")
-
-  result_0$指标[3+time_num] <- quantile_25_label
-  result_0$指标[4+time_num] <- quantile_50_label
-  result_0$指标[5+time_num] <- quantile_75_label
-  result_0$指标[nrow(result_0)] <- censor_rate_label
-
-  fit_50 <- data.frame(summary(survfit(Surv(time_0,censor_0)~grpcd_,conf.type="log-log",data = d_0))$table)
-  quantile_info <- quantile(survfit(Surv(time_0, censor_0) ~ grpcd_, conf.type = "log-log", data = d_0), probs = c(0.25, 0.5, 0.75), conf.int = TRUE)
-  # print(quantile_info)
-  # 创建置信区间字符串,如果点估计值为空，那么填补点估值值为NA,
-  # 如果点估计值不为空，当置信区间上下限为NA时，将NA替换为.(与SAS中的输出形式一致)
-  fit_50$lsd <- sapply(1:nrow(fit_50), function(i) {
-    if (is.na(quantile_info$quantile[i, "25"])) {
-      "NA"
-    } else {
-      lower <- ifelse(is.na(quantile_info$lower[i, "25"]), ".", sprintf('%.2f', quantile_info$lower[i, "25"]))
-      upper <- ifelse(is.na(quantile_info$upper[i, "25"]), ".", sprintf('%.2f', quantile_info$upper[i, "25"]))
-      paste(
-        sprintf('%.2f', quantile_info$quantile[i, "25"]),
-        '(',
-        lower,
-        ',',
-        upper,
-        ')'
-      )
-    }
-  })
-
-
-
-  fit_50$msd <- paste(sprintf('%.2f',fit_50$median),'(',sprintf('%.2f',fit_50$X0.95LCL),',',sprintf('%.2f',fit_50$X0.95UCL),')')
-
-
-  fit_50$usd <- sapply(1:nrow(fit_50), function(i) {
-    if (is.na(quantile_info$quantile[i, "75"])) {
-      "NA"
-    } else {
-      lower <- ifelse(is.na(quantile_info$lower[i, "75"]), ".", sprintf('%.2f', quantile_info$lower[i, "75"]))
-      upper <- ifelse(is.na(quantile_info$upper[i, "75"]), ".", sprintf('%.2f', quantile_info$upper[i, "75"]))
-      paste(
-        sprintf('%.2f', quantile_info$quantile[i, "75"]),
-        '(',
-        lower,
-        ',',
-        upper,
-        ')'
-      )
-    }
-  })
-
-  # 删失率
-  fit_50$delete <- sprintf('%.2f',((fit_50$records-fit_50$events)/fit_50$records)*100)
-
-  for (i in 1:grp_num){
-    result_0[which(result_0$指标 == quantile_25_label),i+1] <- fit_50$lsd[i]
-    result_0[which(result_0$指标 == quantile_50_label),i+1] <- fit_50$msd[i]
-    result_0[which(result_0$指标 == quantile_75_label),i+1] <- fit_50$usd[i]
-    result_0[which(result_0$指标 == censor_rate_label),i+1] <- fit_50$delete[i]
-  }
-
-
-  table_out <- result_0
-
-  # ----------------------------define param----------------------------
-  caption_paragraph <- flextable::as_paragraph(
-    flextable::as_chunk(title, props = officer::fp_text(font.family = "Times New Roman",font.size = 10.5))
+  # ============================================================
+  # Step 4：整理各时间点估计值
+  # ============================================================
+  surv_df <- data.frame(
+    grp_cd = as.integer(sub(".*=(\\d+)$", "\\1", as.character(fit_summary$strata))),
+    time   = fit_summary$time,
+    surv   = fit_summary$surv,
+    lower  = fit_summary$lower,
+    upper  = fit_summary$upper,
+    stringsAsFactors = FALSE
   )
 
-  caption_paragraph_props <- officer::fp_par(padding = 0)
-  # --------------------------------------------------------------------
+  if (type == 1) {
+    surv_df <- surv_df |>
+      dplyr::mutate(
+        surv_disp  = sprintf("%.2f", (1 - surv)  * 100),
+        lower_disp = sprintf("%.2f", (1 - upper) * 100),
+        upper_disp = sprintf("%.2f", (1 - lower) * 100)
+      )
+  } else {
+    surv_df <- surv_df |>
+      dplyr::mutate(
+        surv_disp  = sprintf("%.2f", surv  * 100),
+        lower_disp = sprintf("%.2f", lower * 100),
+        upper_disp = sprintf("%.2f", upper * 100)
+      )
+  }
 
-  #绘制表格
+  surv_df <- surv_df |>
+    dplyr::mutate(dplyr::across(c(surv_disp, lower_disp, upper_disp),
+                                ~ dplyr::if_else(is.na(.x), "0.00", .x))) |>
+    dplyr::mutate(cell = paste0(surv_disp, "(", lower_disp, ",", upper_disp, ")"))
 
-  ft <- flextable::flextable(table_out)
-  # ft <- theme_vanilla(ft)
-  ft <- flextable::color(ft,part = 'footer', color = 'black')
-  ft <- flextable::set_caption(ft, caption = caption_paragraph,fp_p=caption_paragraph_props,align_with_table=TRUE)
-  ft <- flextable::set_table_properties(ft, align="left")
-  # ft<-font(ft,fontname="SimSun",part="all")
-  # ft<-font(ft,fontname="Times New Roman",part="all")
-  ft<-flextable::hline_top(ft,border = flextable::fp_border_default(color="black",width=1.5),part="header")
-  ft<-flextable::hline_bottom(ft,border = flextable::fp_border_default(color="black",width=1.5),part="body")
-  ft<-flextable::hline(ft,i=1,border = flextable::fp_border_default(color="black",width=1),part="header")
-  ft <- flextable::add_footer_lines(ft,footnote)
+  # ============================================================
+  # Step 5：计算分位数及删失率
+  # ============================================================
+  fit_obj <- survival::survfit(surv_obj ~ grp_cd, conf.type = "log-log", data = d_0)
+  fit_tbl <- data.frame(summary(fit_obj)$table)
+  quant   <- stats::quantile(fit_obj, probs = c(0.25, 0.5, 0.75), conf.int = TRUE)
 
-  if (exists('table_out', envir = .GlobalEnv)) rm(table_out, envir = .GlobalEnv)
-  ft <- flextable::autofit(ft)
+  .fmt_quant <- function(q_mat, l_mat, u_mat, col_name, i) {
+    q <- q_mat[i, col_name]
+    if (is.na(q)) return("NA")
+    l <- ifelse(is.na(l_mat[i, col_name]), ".", sprintf("%.2f", l_mat[i, col_name]))
+    u <- ifelse(is.na(u_mat[i, col_name]), ".", sprintf("%.2f", u_mat[i, col_name]))
+    paste0(sprintf("%.2f", q), "(", l, ",", u, ")")
+  }
+
+  q25 <- vapply(seq_len(grp_num), function(i)
+    .fmt_quant(quant$quantile, quant$lower, quant$upper, "25", i), character(1))
+  q50 <- vapply(seq_len(grp_num), function(i)
+    .fmt_quant(quant$quantile, quant$lower, quant$upper, "50", i), character(1))
+  q75 <- vapply(seq_len(grp_num), function(i)
+    .fmt_quant(quant$quantile, quant$lower, quant$upper, "75", i), character(1))
+
+  cens_rate <- sprintf("%.2f", ((fit_tbl$records - fit_tbl$events) / fit_tbl$records) * 100)
+
+  # ============================================================
+  # Step 6：构造宽格式输出
+  # ============================================================
+  n_per_grp <- d_0 |>
+    dplyr::group_by(grp_cd) |>
+    dplyr::summarise(n = dplyr::n(), .groups = "drop") |>
+    dplyr::arrange(grp_cd)
+
+  grp_col_labels <- vapply(seq_len(grp_num), function(i) {
+    n_i <- n_per_grp$n[n_per_grp$grp_cd == i]
+    n_i <- if (length(n_i) == 0) 0L else n_i
+    paste0(grpnames[i], "$(N=", n_i, ")")
+  }, character(1))
+
+  col_name_label  <- ".label"
+  col_name_groups <- make.names(grpnames, unique = TRUE)
+
+  header_row <- c(
+    paste0(time_lbl, "（Log-Rank=", lr_stat, ",P=", lr_p, "）"),
+    rep("", grp_num)
+  )
+
+  time_rows <- lapply(seq_along(timelist), function(t_i) {
+    t_val <- timelist[t_i]
+    cells <- vapply(seq_len(grp_num), function(g) {
+      row <- surv_df |> dplyr::filter(grp_cd == g, time == t_val)
+      if (nrow(row) == 0) "—" else row$cell[1]
+    }, character(1))
+    c(as.character(t_val), cells)
+  })
+
+  q25_row  <- c("25%分位数(95%CI)", q25)
+  q50_row  <- c("50%分位数(95%CI)", q50)
+  q75_row  <- c("75%分位数(95%CI)", q75)
+  cens_row <- c("删失率(%)", cens_rate)
+
+  all_rows <- c(list(header_row), time_rows, list(q25_row, q50_row, q75_row, cens_row))
+
+  out_df        <- as.data.frame(do.call(rbind, all_rows), stringsAsFactors = FALSE)
+  names(out_df) <- c(col_name_label, col_name_groups)
+
+  # ============================================================
+  # Step 7：构造 varlist，调用 report_table()
+  # ============================================================
+  varlist_parts <- c(
+    paste0(col_name_label, "/", topleftlabel),
+    paste0(col_name_groups, "/", grp_col_labels)
+  )
+  varlist_str <- paste(varlist_parts, collapse = "|")
+
+  ft <- report_table(
+    data       = out_df,
+    varlist    = varlist_str,
+    title      = title,
+    footnote   = footnote,
+    headerjust = "center",
+    col1just   = "left",
+    columnjust = "center",
+    autoaddnum = "yes",
+    bold_rows  = 1L
+  )
+
+  attr(ft, "hbr_varlist")  <- varlist_str
+  attr(ft, "hbr_title")    <- title
+  attr(ft, "hbr_footnote") <- footnote
+  attr(ft, "hbr_styling_params") <- list(
+    headerjust = "center", columnjust = "center", col1just = "left", bold_rows = 1L
+  )
+
   ft
 }
-
-
-
-
-
-
-

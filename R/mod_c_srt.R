@@ -60,7 +60,7 @@ mod_c_srt_ui <- function(id) {
           ),
           checkboxInput(ns("coltotal"), "显示列合计", value = FALSE),
           checkboxInput(ns("rowtotal"), "显示行合计", value = TRUE),
-          # checkboxInput(ns("outyn"), "输出表格", value = TRUE),
+          checkboxInput(ns("outyn"), "是否立即出表", value = TRUE),
           checkboxInput(ns("test_between"), "组间比较", value = 2),
           checkboxInput(ns("test_in"), "组内比较", value = FALSE),
           textInput(ns("table_title"), "表格标题", value = "秩和检验结果"),
@@ -115,6 +115,7 @@ mod_c_srt_server <- function(id, data_upload_module){
       updateCheckboxInput(session, "rowtotal", value = TRUE)
       updateCheckboxInput(session, "test_between", value = TRUE)
       updateCheckboxInput(session, "test_in", value = FALSE)
+      updateCheckboxInput(session, "outyn", value = TRUE)
 
       # 重置初始化状态
       rv$init_done <- FALSE
@@ -183,7 +184,7 @@ mod_c_srt_server <- function(id, data_upload_module){
           if (current_analysis_type == "c_srt" && all(c("DIFF_TB", "arm3") %in% vars)) {
             message("🎯 设置秩和检验默认变量...")
             updateSelectizeInput(session, "var_name", selected = "DIFF_TB")
-            updateTextInput(session, "var_label", value = "用药后18周±3天-基线")
+            updateTextInput(session, "var_label", value = "访视4")
             updateTextInput(session, "var_mapping", value = "-3=改善3个等级/-2=改善2个等级/-1=改善1个等级/0=无变化/1=加重1个等级/2=加重2个等级/3=加重3个等级")
             updateSelectizeInput(session, "group_var", selected = "arm3")
 
@@ -317,7 +318,7 @@ mod_c_srt_server <- function(id, data_upload_module){
         group_c = group_cond_text,
         coltotal = as.integer(input$coltotal),
         rowtotal = as.integer(input$rowtotal),
-        outyn = 1,
+        outyn = as.integer(input$outyn),
         test_between = as.integer(input$test_between),
         test_in = as.integer(input$test_in),
         table_title = input$table_title,

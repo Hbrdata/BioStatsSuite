@@ -1,252 +1,165 @@
-#' q_describe
-#'
-#' @description A utils function for descriptive statistics of continuous variables
-#'
-#' @param inds Object of the data frame
-#' @param data_cond Data filtering condition
-#' @param var_name Variable name for analysis
-#' @param var_label Variable label
-#' @param group_name Grouping variable name
-#' @param group_cond Group conditions to analyze
-#' @param table_title Table title
-#' @param ftnote Footnote
-#' @param totalyn Whether to output total column (0: no, other: yes)
-#' @param outyn Whether to output table (1: yes, other: no)
-#'
-#' @return A flextable object with descriptive statistics
-#'
-#' @importFrom dplyr filter select group_by summarise bind_rows n all_of
-#' @importFrom rlang parse_expr .data
-#' @importFrom stats median quantile sd setNames
-#' @importFrom flextable flextable set_caption set_table_properties font hline_top hline_bottom hline add_footer_lines as_chunk
-#' @importFrom magrittr %>%
-#' @importFrom officer fp_text
-#' @noRd
-#示例
-
-# adsl<-read_excel("E:/Rlanguage/2-system/R/R/rfile/数据/adsl.xlsx")
+# =============================================================================
+# utils_q_describe.R
+# 连续型变量描述性统计函数（R 包内部版本）
 #
-# q_describe(data = "adsl"
-#            ,data_cond = "FAS!=''"
-#            ,var_name="HEIGHT"
-#            ,var_label="我是标签"
-#            ,group_name="arm3"
-#            ,group_cond=c('对照组','试验组','安慰剂组')
-#            ,table_title="我是表格名称"
-#            ,ftnote="我是底注"
-#            ,totalyn=1
-#            ,outyn=1)
+# 与 Shiny 工作流集成：
+#   - 接收 mod_q_describe_server 返回的参数（inds, data_cond, var_name 等）
+#   - 内部构建标准宽表（.label / _np1~N / _np999），与 q_pairt、c_describe_m 共用格式
+#   - 调用 report_table() 统一出表样式（三线表、自动编号等）
+#   - 返回 flextable 对象，供 Shiny 结果面板显示和报告导出
+#
+# 累积缓存：与 q_pairt、c_describe_m 共用全局变量 .table_out1
+#   outyn=0 时累积，outyn=1 时统一出表并清空
+# =============================================================================
 
+#' 连续型变量描述性统计
+#'
+#' @param inds              数据框对象
+#' @param data_cond         数据筛选条件（R 表达式字符串）
+#' @param denominator_data  分母数据框（可选），若为 NULL 则使用 inds
+#' @param denominator_cond  分母数据筛选条件（R 表达式字符串）
+#' @param var_name    分析变量名
+#' @param var_label   变量显示标签
+#' @param group_name  分组变量名
+#' @param group_cond  分组条件（字符向量）
+#' @param table_title 表格标题
+#' @param ftnote      底注内容
+#' @param totalyn     是否输出合计列（1=是，0=否）
+#' @param outyn       是否立即出表（1=是，0=仅累积）
+#'
+#' @return flextable 对象（outyn=1）或 NULL（outyn=0，仅累积）
+#' @noRd
+q_describe <- function(inds,
+                       data_cond,
+                       denominator_data = NULL,
+                       denominator_cond = "TRUE",
+                       var_name,
+                       var_label,
+                       group_name,
+                       group_cond,
+                       table_title,
+                       ftnote,
+                       totalyn,
+                       outyn = 1) {
 
-
-q_describe<-function(inds,data_cond,var_name,var_label,group_name,group_cond,table_title,ftnote,totalyn,outyn=1)
-{
-
-  ##############根据条件创建数据框###########
-  data_0 <- inds
-
-
-    data_cond_0 <- rlang::parse_expr(data_cond)
-
-
-    data_0 <- data_0  %>%
-      dplyr::filter(!!data_cond_0) #根据条件筛选出数据框
-
-
-  data_0 <- data_0 %>%
-    dplyr::filter(.data[[group_name]] %in% group_cond )
-
-  # data_0_out <<- data_0
-
-  var_expr <- rlang::ensym(var_name)
-  group_expr <- rlang::ensym(group_name)
-
-
-  d_0 <- data_0 %>%
-    dplyr::select({{var_expr}},{{group_expr}})
-
-  d_1 <- stats::setNames(d_0,c("var_0","group_0"))
-
-  d_1$group_0 <- factor(d_1$group_0, levels = group_cond)   #将分组变量因子化，并按照输入顺序等级赋值，保证
-  #输入顺序即为显示顺序
-  table1::label(d_1$var_0)<-var_label
-  # d_1_out <<- d_1
-
-
-  #制作表头
-  title_0 <- d_1 %>%
-    dplyr::group_by(group_0) %>%
-    dplyr::filter(group_0 %in% group_cond) %>%  # 使用filter挑选分组
-    dplyr::summarise(
-      n = dplyr::n() # 计数每个组的观测值数量
+  # ============================================================
+  # 内部辅助：描述性统计计算
+  # ============================================================
+  .desc_stats <- function(x) {
+    n_val    <- sum(!is.na(x))
+    miss_val <- sum(is.na(x))
+    c(
+      paste0(n_val, "(", miss_val, ")"),
+      paste0(.format_num2(mean(x, na.rm = TRUE)), "(", .format_num2(stats::sd(x, na.rm = TRUE)), ")"),
+      paste0(.format_num2(stats::median(x, na.rm = TRUE)), "(",
+             .format_num2(stats::quantile(x, 0.25, type = 2, na.rm = TRUE)), ",",
+             .format_num2(stats::quantile(x, 0.75, type = 2, na.rm = TRUE)), ")"),
+      paste0(.format_num2(min(x, na.rm = TRUE)), ",", .format_num2(max(x, na.rm = TRUE)))
     )
-
-  title_0_1 <- d_1 %>%
-    dplyr::summarise(
-      group_0 = '合计',
-      n = dplyr::n()  # 计数每个组的观测值数量
-    )
-
-  title_0 <- dplyr::bind_rows(title_0, title_0_1)
-
-  title_0$grp_n = paste(title_0$group_0, '\n(N = ', title_0$n, ')')
-
-  title_0 <- title_0 %>% dplyr::select(grp_n)
-
-  title_0_0 <- rep(list(NA), ncol(title_0))
-  names(title_0_0) <- names(title_0)  # 确保新行的列名与df相同
-
-  # 创建一个新的数据框，先添加新行，再添加原始数据框
-  title_0 <- rbind(title_0_0, title_0)
-
-  title_0[1,1]<- '  '
-
-  title_0 <- as.data.frame(t(as.matrix(title_0)))
-
-  col_names <- as.character(title_0[1, ])  # 提取第一行作为列名，转换为字符型
-  title_name <- as.character(title_0[1, ])
-  title_0 <- title_0[-1, ]  # 删除第一行
-  names(title_0) <- col_names  # 设置新的列名
-
-
-  # title_0_out <<- title_0
-
-  #进行描述性统计
-
-  s_0 <- d_1 %>%
-    dplyr::group_by(group_0) %>%
-    dplyr::filter(group_0 %in% group_cond) %>%  # 使用filter挑选分组
-    dplyr::summarise(
-      mean = sprintf('%.2f', mean(var_0, na.rm = TRUE)),  #na.rm=TRUE 表示对于数据中的NA值，确保函数在计算时值考虑非缺失值，得到一个
-      #基于有效数据的统计结果
-      median = sprintf('%.2f',median(var_0, na.rm = TRUE)),
-      Q1 = sprintf('%.2f',quantile(var_0,probs = 0.25, type = 2,na.rm = TRUE)),
-      Q2 = sprintf('%.2f',quantile(var_0,probs = 0.50, type = 2,na.rm = TRUE)),
-      Q3 = sprintf('%.2f',quantile(var_0,probs = 0.75, type = 2,na.rm = TRUE)),
-      sd = sprintf('%.2f',sd(var_0, na.rm = TRUE)),
-      min = sprintf('%.2f',min(var_0, na.rm = TRUE)),
-      max = sprintf('%.2f',max(var_0, na.rm = TRUE)),
-      n = sum(!is.na(var_0)),  # 计数每个组的观测值数量
-      missing = sum(is.na(var_0)),
-      N_Missing = paste(n,'(',missing,')',sep = ''),
-      Mean_SD = paste(mean,'(',sd,')',sep=''),
-      Median_Q1_Q3 = paste(median,'(',Q1,',',Q3,')',sep = ''),
-      Min_Max = paste(min,',',max)
-    )
-
-  #总计列
-
-  s_1 <- d_1 %>%
-    dplyr::summarise(
-      group_0 = '合计',
-      mean = sprintf('%.2f',mean(var_0, na.rm = TRUE)),  #na.rm=TRUE 表示对于数据中的NA值，确保函数在计算时值考虑非缺失值，得到一个
-      #基于有效数据的统计结果
-      median = sprintf('%.2f',median(var_0, na.rm = TRUE)),
-      Q1 = sprintf('%.2f',quantile(var_0,probs = 0.25,type = 2, na.rm = TRUE)),
-      Q2 = sprintf('%.2f',quantile(var_0,probs = 0.50, type = 2,na.rm = TRUE)),
-      Q3 = sprintf('%.2f',quantile(var_0,probs = 0.75,type = 2,na.rm = TRUE)),
-      sd = sprintf('%.2f',sd(var_0, na.rm = TRUE)),
-      min = sprintf('%.2f',min(var_0, na.rm = TRUE)),
-      max = sprintf('%.2f',max(var_0, na.rm = TRUE)),
-      n = sum(!is.na(var_0)),  # 计数每个组的观测值数量
-      missing = sum(is.na(var_0)),
-      N_Missing = paste(n,'(',missing,')',sep = ''),
-      Mean_SD = paste(mean,'(',sd,')',sep=''),
-      Median_Q1_Q3 = paste(median,'(',Q1,',',Q3,')',sep = ''),
-      Min_Max = paste(min,',',max)
-    )
-
-  s_2 <- dplyr::bind_rows(s_0,s_1)
-
-  s_2$grp_n = paste(s_2$group_0, '\n(N = ', s_2$n, ')')
-
-  s_2 <- s_2 %>% dplyr::select(grp_n,N_Missing,Mean_SD,Median_Q1_Q3,Min_Max)
-
-
-  s_3 <- data.frame(matrix(NA,nrow = nrow(s_2) + 1, ncol = ncol(s_2)), stringsAsFactors = FALSE)
-
-  s_3[1, ] <- names(s_2)
-
-  for (i in 1:nrow(s_2)){
-    s_3[i + 1, ] <- as.character(unlist(s_2[i, ]))
   }
 
+  row_labels <- c("  N(Missing)", "  Mean(SD)", "  Median(Q1,Q3)", "  Min,Max")
 
-  # 使用as.matrix进行转置
-  t_0 <- as.data.frame(t(as.matrix(s_3)))
+  grp_num <- length(group_cond)
 
+  # ============================================================
+  # Step 1：筛选数据
+  # ============================================================
+  data_0 <- .filter_by_expr(inds, data_cond)
+  data_0 <- data_0 |> dplyr::filter(.data[[group_name]] %in% group_cond)
 
-  t_1 <- data.frame(matrix(NA,nrow = nrow(t_0) + 1, ncol = ncol(t_0)),stringsAsFactors = FALSE)
+  d_0 <- data_0 |> dplyr::select(dplyr::all_of(c(var_name, group_name)))
+  d_1 <- stats::setNames(d_0, c("var_0", "group_0"))
+  d_1$group_0 <- factor(d_1$group_0, levels = group_cond)
 
-  t_1[2,1] <- table1::label(d_1$var_0)
+  # ============================================================
+  # Step 2：计算各组 N（用于表头 N=XX）
+  # ============================================================
+  # 分母数据：优先使用 denominator_data，否则回退到 inds
+  den_source <- if (!is.null(denominator_data)) denominator_data else inds
+  den_filtered <- .filter_by_expr(den_source, denominator_cond)
+  den_filtered <- den_filtered |> dplyr::filter(.data[[group_name]] %in% group_cond)
+  den_n_vec <- .group_denominator_n(den_filtered, group_name, group_cond)
+  den_n_total <- sum(den_n_vec, na.rm = TRUE)
 
-  t_1[1, ] <- t_0[1, ]
+  # ============================================================
+  # Step 3：描述性统计计算
+  # ============================================================
+  grp_stats <- lapply(group_cond, function(g) {
+    x <- suppressWarnings(as.numeric(d_1$var_0[d_1$group_0 == g]))
+    if (length(x[!is.na(x)]) == 0) rep("", 4) else .desc_stats(x)
+  })
 
-  t_1[1,1] <- NA
+  x_all       <- suppressWarnings(as.numeric(d_1$var_0))
+  total_stats <- if (length(x_all[!is.na(x_all)]) == 0) rep("", 4) else .desc_stats(x_all)
 
-  for (i in 1:4) {
-    t_1[i + 2, ] <- as.character(unlist(t_0[i+1, ]))
+  # ============================================================
+  # Step 4：组装宽表（.label / _np1~N / _np999）
+  # ============================================================
+  stats_df <- data.frame(.label = row_labels, stringsAsFactors = FALSE)
+  for (i in seq_len(grp_num)) {
+    stats_df[[paste0("_np", i)]] <- grp_stats[[i]]
+  }
+  stats_df[["_np999"]] <- total_stats
+
+  # 首行（变量标签行）
+  first_row <- data.frame(.label = var_label, stringsAsFactors = FALSE)
+  for (i in seq_len(grp_num)) first_row[[paste0("_np", i)]] <- ""
+  first_row[["_np999"]] <- ""
+
+  result_df <- dplyr::bind_rows(first_row, stats_df)
+
+  # 单组别处理：_np1 合并到 _np999，删除 _np1
+  if (grp_num == 1) {
+    result_df[["_np999"]] <- result_df[["_np1"]]
+    result_df[["_np1"]]   <- NULL
   }
 
+  # ============================================================
+  # Step 5：累积到全局缓存 .table_out1
+  # ============================================================
+  .append_table_cache(value = result_df)
 
-  col_names <- t_1[1, ]
-  col_names[1,1] <- '  '
-  t_2 <- dplyr::slice(t_1, -1)# 移除第一行
-  names(t_2) <- col_names # 将第一行的值设置为列名
-  # t_2[is.na(t_2)] <- ""   #将数据框中NA显示为空值
-  t_2[2,1] <- '\u00A0\u00A0\u00A0\u00A0N(Missing)'
-  t_2[3,1] <- '\u00A0\u00A0\u00A0\u00A0Mean(SD)'
-  t_2[4,1] <- '\u00A0\u00A0\u00A0\u00A0Median(Q1,Q3)'
-  t_2[5,1] <- '\u00A0\u00A0\u00A0\u00A0Min,Max'
+  if (outyn != 1) return(invisible(NULL))
 
-  names(t_2) <- title_name
+  # ============================================================
+  # Step 6：outyn=1 → 构造 varlist，调用 report_table() 出表，清空缓存
+  # ============================================================
+  out_df <- .consume_table_cache()
 
-  t_2 <<- t_2
+  # 确保所有目标列存在，NA 替换为空字符串
+  need_cols <- c(
+    ".label",
+    if (grp_num > 1L) paste0("_np", seq_len(grp_num)),
+    "_np999"
+  )
+  out_df <- .ensure_report_columns(out_df, need_cols)
 
-  #判断table_out是否存在，如果不存在，则创建一个table_out，并将其设置为title_0的值
-  if (exists('table_out')==FALSE){
-    table_out<-title_0
+  # 构建 varlist 字符串
+  varlist_str <- paste0(".label/", table_title)
+
+  if (grp_num > 1L) {
+    for (i in seq_len(grp_num)) {
+      lbl <- group_cond[i]
+      lbl <- paste0(lbl, "$(N=", den_n_vec[i], ")")
+      varlist_str <- paste0(varlist_str, "|_np", i, "/", lbl)
+    }
+    if (totalyn == 1) {
+      lbl <- paste0("合计$(N=", den_n_total, ")")
+      varlist_str <- paste0(varlist_str, "|_np999/", lbl)
+    }
+  } else {
+    lbl <- paste0("合计$(N=", den_n_total, ")")
+    varlist_str <- paste0(varlist_str, "|_np999/", lbl)
   }
 
-  table_out <- bind_rows(table_out,t_2)
-
-  if (totalyn==0){
-    table_out <- table_out[, -ncol(table_out)]
-
-  }
-
-  table_out <<-table_out
-
-  # ----------------------------define param----------------------------
-  caption_paragraph <- flextable::as_paragraph(
-    flextable::as_chunk(table_title, props = officer::fp_text(font.family = "Times New Roman",font.size = 10.5))
+  # 调用 report_table() 出表
+  ft <- report_table(
+    data     = out_df,
+    varlist  = varlist_str,
+    title    = table_title,
+    footnote = ftnote
   )
 
-  caption_paragraph_props <- officer::fp_par(padding = 0)
-  # --------------------------------------------------------------------
-
-  ft <- if (outyn == 1) {
-    #绘制表格
-    ft <- flextable::flextable(table_out)
-    ft <- flextable::color(ft, part = 'footer', color = 'black')
-    ft <- flextable::set_caption(ft, caption = caption_paragraph,fp_p=caption_paragraph_props,align_with_table=TRUE)
-    ft <- flextable::set_table_properties(ft, align="left")
-    ft <- flextable::font(ft, fontname = "Times New Roman", part = "all")
-    ft <- flextable::hline_top(ft, border = flextable::fp_border_default(color = "black", width = 1.5), part = "header")
-    ft <- flextable::hline_bottom(ft, border = flextable::fp_border_default(color = "black", width = 1.5), part = "body")
-    ft <- flextable::hline(ft, i = 1, border = flextable::fp_border_default(color = "black", width = 1), part = "header")
-    ft <- flextable::add_footer_lines(ft, ftnote)
-    if (exists('table_out', envir = .GlobalEnv)) {
-      rm(table_out, envir = .GlobalEnv)
-    }
-    if (exists('t_2', envir = .GlobalEnv)) {
-      rm(t_2, envir = .GlobalEnv)
-    }
-
-    ft
-  } else {
-    NULL
-  }
-
-  return(ft)
+  .attach_report_attrs(ft, varlist_str, table_title, ftnote)
 }

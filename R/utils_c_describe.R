@@ -1,417 +1,176 @@
-#' c_describe
-#'
-#' @description A utils function for categorical variable descriptive statistics
-#'
-#' @return A flextable object with descriptive statistics
-#'
-#' @importFrom dplyr filter select group_by summarise bind_rows n rename mutate if_else
-#' @importFrom rlang parse_expr .data ensym
-#' @importFrom flextable flextable set_caption font hline_top hline_bottom hline add_footer_lines autofit
-#' @importFrom tidyr pivot_wider
-#' @importFrom purrr map
-#' @importFrom gmodels CrossTable
-#' @importFrom officer fp_border
-#' @noRd
-#######分类变量描述性统计函数#########
-
-# 用途：用于对数据框中数据进行分组统计学描述
-
-#基本参数：
-# data_cond   =        要进行统计描述的数据集|<筛选条件（即当做分子的n）>
-# denominator_cond =   当做分母的数据集的名称|条件
-# varlist =            分析的变量|变量标签|分类1=分类1标签/分类2=分类2标签/……
-# coltotal =           是否输出列合计（最后一行的“合计”）；默认为输出，如果coltotal=0,则不输出
-# rowtotal =           是否输出行合计（最后一列的“合计”）；默认为输出，如果rowtotal=0,则不输出
-# outyn =              是否输出表格；默认为outyn=1(输出表格)；outyn=0为不输出表格，后续表格会进行累加
-# title =              表格的title
-# footnote =           表格的footnote
-
-
-#示例
-
-# adsl<-read_excel("E:/Rlanguage/2 - system/R/R/rfile/数据/adsl.xlsx")
+# =============================================================================
+# utils_c_describe.R
+# 分类变量描述性统计函数（R 包内部版本）
 #
-# c_describe(data_cond ="adsl|FAS!=''"
-#            ,denominator_cond="adsl|FAS!=''"
-#            ,varlist= "sex|性别|'男'=男/'女'=女"
-#            ,group_c= 'arm3|试验组/对照组/安慰剂组'
-#            ,coltotal=1
-#            ,rowtotal=1
-#            ,outyn=1
-#            ,table_title="标题"
-#            ,ftnote="底注")
+# 与 Shiny 工作流集成：
+#   - 接收 mod_c_describe_server 返回的参数
+#   - 内部构建标准宽表（.label / _np1~N / _np999）
+#   - 调用 report_table() 统一出表样式（三线表、自动编号等）
+#   - 返回 flextable 对象，供 Shiny 结果面板显示和报告导出
+#
+# 累积缓存：使用 .table_out1（outyn=0 时累积，outyn=1 时出表并清空）
+#   缓存读写通过 .append_table_cache() / .consume_table_cache() 包装。
+# =============================================================================
 
+#' 分类变量描述性统计
+#'
+#' @param inds              数据框对象
+#' @param data_cond         数据筛选条件（R 表达式字符串）
+#' @param denominator_data  分母数据框（可选），若为 NULL 则使用 inds
+#' @param denominator_cond  分母数据筛选条件
+#' @param varlist           分析变量描述："变量名|变量标签|值1=标签1/值2=标签2/..."
+#' @param group_c           分组描述："分组变量名|组名1/组名2/..."
+#' @param coltotal          是否输出合计行（1=是，0=否）
+#' @param rowtotal          是否输出合计列（1=是，0=否）
+#' @param outyn             是否立即出表（1=是，0=仅累积）
+#' @param table_title       表格标题
+#' @param ftnote            底注内容
+#'
+#' @return flextable 对象（outyn=1）或 NULL（outyn=0，仅累积）
+#' @noRd
+c_describe <- function(inds, data_cond, denominator_data = NULL, denominator_cond = "TRUE", varlist, group_c,
+                       coltotal, rowtotal, outyn = 1, table_title, ftnote) {
 
+  # ============================================================
+  # Step 1：解析参数
+  # ============================================================
+  group_spec <- .parse_group_c(group_c)
+  grpvar <- group_spec$var
+  grpnames <- group_spec$levels
+  grp_num <- group_spec$n
 
+  var_spec <- .parse_varlist_spec(varlist, category = TRUE)
+  ana_var <- var_spec$var
+  ana_label <- var_spec$label
+  cat_vals <- var_spec$cat_values
+  cat_labels <- var_spec$cat_labels
+  cat_num <- var_spec$cat_n
 
+  # ============================================================
+  # Step 2：筛选数据（分子）
+  # ============================================================
+  data_0 <- .filter_by_expr(inds, data_cond)
+  data_0 <- data_0 |> dplyr::filter(.data[[grpvar]] %in% grpnames)
 
-c_describe <- function(inds, data_cond,denominator_cond,varlist,group_c,coltotal,rowtotal,outyn=1,table_title,ftnote)
-{
-
-  grp_part <-  unlist(strsplit(group_c, "|", fixed = TRUE))
-
-  grpvar_ <-  grp_part[1]
-  grpnames_ <- grp_part[2]
-
-  s_ <- 1
-  grpnames_ <- unlist(strsplit(grpnames_, "/", fixed = TRUE))
-  #建立list来存储连续生成的组别名称
-  cat_grpname <- list()
-
-  while (s_ <= length(grpnames_) && grpnames_[s_] != "") {
-    cat_grpname[[s_]] <- grpnames_[s_]
-    s_ <- s_ + 1
-    grp_num=s_ - 1
-  }
-  ##########################拆分分析变量及标签
-  varlist_parts_1 <- unlist(strsplit(varlist, "|", fixed = TRUE))
-  anavar_ <-  varlist_parts_1[1]
-  avalabel_ <- varlist_parts_1[2]
-  catlist_ <- varlist_parts_1[3]
-
-  # 使用strsplit分割字符串
-
-  s_ <- 1
-  var_parts_2 <- unlist(strsplit(catlist_, "/", fixed = TRUE))
-  #建立list来存储连续生成的变量名称
-  catcont_  <- list()
-  catlabel_ <- list()
-
-  while (s_ <= length(var_parts_2) && var_parts_2[s_] != "") {
-    # 假设每个部分都是"内容=标签"的形式
-    # 使用strsplit再次分割当前部分
-
-    part_split <- unlist(strsplit(var_parts_2[s_], "=", fixed = TRUE))
-    var_parts_3 <- unlist(strsplit(var_parts_2[s_], "=", fixed = TRUE))
-
-    catcont_[[s_]] <- var_parts_3[1]
-    catlabel_[[s_]] <- var_parts_3[2]
-
-    # 索引递增
-    s_ <- s_ + 1
-    catnum_=s_-1
-  }
-
-  #制作输出数据集的全部cat，并进行排序
-
-  cat_ <- data.frame(
-    catlabel_ = character(catnum_),
-    catorder_ = numeric(catnum_),
-    stringsAsFactors = FALSE
-  )
-
-  for (i in 1:catnum_) {
-    cat_$catlabel_[i] <- paste0("\u3000", catlabel_[[i]])
-    cat_$catorder_[i] <- i
-  }
-
-  cat_999 <- list(catlabel_ = '\u3000合计',catorder_=999)
-  cat_ <- rbind(cat_,cat_999)
-
-  cond_n_ <- data_cond
-
-  data_0 <- inds
-  cond_n_ <- rlang::parse_expr(cond_n_)
-  data_0 <- data_0  %>%
-    dplyr::filter(!!cond_n_) #根据条件筛选出数据框
-
-  group_cond <- c(grpnames_)
-
-  data_0 <- data_0 %>%
-    dplyr::filter(.data[[grpvar_]] %in% group_cond )
-
-  var_expr <- rlang::ensym(anavar_)
-  group_expr <- rlang::ensym(grpvar_)
-
-  d_0 <- data_0 %>%
-    dplyr::select({{var_expr}},{{group_expr}})
-  d_0 <- stats::setNames(d_0,c("var_0","group_0"))
-  d_0$grpcd_ <- NA
-  d_0$catorder_ <- NA
-
-  #拆分数据集及条件（分子numerator），并且给组别排序
-
-  for (i in 1:nrow(d_0)){
-    for (s_ in 1:grp_num) {
-      if (d_0$group_0[i] == cat_grpname[[s_]]){
-        d_0$grpcd_[i] <-s_
-        break
-      }
-
-    }
-    for (i in 1:nrow(d_0)){
-      for (s_ in 1:catnum_) {
-        if (!is.na(d_0$var_0[i]) && d_0$var_0[i] == parse_expr(catcont_[[s_]])) {
-          d_0$catorder_[i] <- s_
-          break
-        }
-      }
-    }
-  }
-  #为每个组别增加一条观测444，防止有的组别没有观测，会错乱
-  d_0_newrow <- data.frame(
-    group_0 = character(grp_num),
-    grpcd_ = integer(grp_num),
-    catorder_ = 444
-  )
-
-  for (s_ in 1:grp_num) {
-    d_0_newrow$group_0[s_] <- grpnames_[s_]
-    d_0_newrow$grpcd_[s_] <- s_
-  }
-
-  d_0 <- dplyr::bind_rows(d_0, d_0_newrow)
-  ######计算分子
-  #计算频数
-  n1_ <- data.frame(gmodels::CrossTable(d_0$catorder_,d_0$grpcd_))
-  n1_ <- n1_ %>% dplyr::select(t.x,t.y,t.Freq)
-  #跨栏操作重塑数据框
-  n1_ <- n1_ %>%
-    tidyr::pivot_wider(names_from = t.y, values_from = t.Freq, values_fill = 0)
-  #添加总计行
-  total_c_0 <- colSums(n1_[, -c(1)], na.rm = TRUE)
-  total_c_0 <- data.frame(total_c_0)
-  total_c <- as.data.frame(t(total_c_0))
-  n1_ <- dplyr::bind_rows(n1_, total_c)
-
-  #添加总计列
-  n1_$n999_ <- rowSums(n1_[, -c(1)])
-
-  n1_ <- n1_ %>%
-    dplyr::rename(
-      catorder_ =  t.x
-    )
-  # 由于前面每个组别插入了一行444，所以在这个地方要将合计都删除1个，找到合计的数值
-  n1_$BREAK_ <- NA
-  n1_$catorder_ <- as.integer(as.character(n1_$catorder_))
-  n1_$BREAK_[is.na(n1_$catorder_)] <- 'RBREAK_'
-  n1_$catorder_[is.na(n1_$catorder_)] <- 999
-
-  for (s_ in 1:grp_num) {
-    n1_[n1_$catorder_ == 999,s_+1] <- (n1_[n1_$catorder_ == 999,s_+1] )-1
-
-  }
-
-  n1_ <- n1_ %>%
+  d_0 <- data_0 |>
+    dplyr::select(dplyr::all_of(c(ana_var, grpvar))) |>
+    stats::setNames(c("var_0", "group_0")) |>
     dplyr::mutate(
-      n999_ = if_else(!is.na(BREAK_) , n999_-grp_num, n999_),
+      grp_cd = match(group_0, grpnames),
+      cat_cd = match(as.character(var_0), cat_vals)
     )
 
-  cond_d_ <- denominator_cond
+  # ============================================================
+  # Step 3：筛选分母数据
+  # ============================================================
+  den_source <- if (!is.null(denominator_data)) denominator_data else inds
+  data_1 <- .filter_by_expr(den_source, denominator_cond)
+  data_1 <- data_1 |> dplyr::filter(.data[[grpvar]] %in% grpnames)
 
+  # 各组分母 N
+  denom_n <- .group_denominator_n(data_1, grpvar, grpnames, missing_as_zero = FALSE)
+  total_n <- sum(denom_n, na.rm = TRUE)
 
-  data_1 <- inds
-  cond_d_ <- rlang::parse_expr(cond_d_)
-  data_1 <- data_1  %>%
-    dplyr::filter(!!cond_d_) #根据条件筛选出数据框
+  # ============================================================
+  # Step 4：计算频数矩阵（cat_cd x grp_cd）
+  # ============================================================
+  freq_df <- d_0 |>
+    dplyr::filter(!is.na(cat_cd)) |>
+    dplyr::count(cat_cd, grp_cd, name = "freq") |>
+    tidyr::complete(cat_cd = seq_len(cat_num), grp_cd = seq_len(grp_num),
+                    fill = list(freq = 0L))
 
-  group_cond <- c(grpnames_)
+  grp_totals <- d_0 |>
+    dplyr::filter(!is.na(cat_cd)) |>
+    dplyr::count(grp_cd, name = "freq") |>
+    dplyr::mutate(cat_cd = 999L)
 
-  data_1 <- data_1 %>%
-    dplyr::filter(.data[[grpvar_]] %in% group_cond )
+  total_all <- sum(grp_totals$freq)
 
-  var_expr <- rlang::ensym(anavar_)
-  group_expr <- rlang::ensym(grpvar_)
+  # ============================================================
+  # Step 5：构造宽格式输出
+  # ============================================================
+  # 各分类行
+  cat_rows <- lapply(seq_len(cat_num), function(ci) {
+    grp_cells <- vapply(seq_len(grp_num), function(gi) {
+      n_ij <- freq_df$freq[freq_df$cat_cd == ci & freq_df$grp_cd == gi]
+      n_ij <- if (length(n_ij) == 0) 0L else as.integer(n_ij)
+      .format_n_pct(n_ij, denom_n[gi])
+    }, character(1))
 
-  d_1 <- data_1 %>%
-    dplyr::select({{var_expr}}, {{group_expr}})
-  d_1 <- stats::setNames(d_1, c("var_0", "group_0"))
-  d_1$grpcd_ <- NA
+    n_row   <- sum(freq_df$freq[freq_df$cat_cd == ci])
+    total_cell <- .format_n_pct(n_row, total_n)
 
-  #拆分数据集及条件（分子numerator），并且给组别排序
+    c(paste0("  ", cat_labels[ci], "(%)"), grp_cells, total_cell)
+  })
 
-  for (i in 1:nrow(d_1)){
-    for (s_ in 1:grp_num) {
-      if (d_1$group_0[i] == cat_grpname[[s_]]){
-        d_1$grpcd_[i] <-s_
-        break
-      }
+  # 合计行
+  total_row_cells <- vapply(seq_len(grp_num), function(gi) {
+    n_gi    <- as.integer(grp_totals$freq[grp_totals$grp_cd == gi])
+    n_gi    <- if (length(n_gi) == 0) 0L else n_gi
+    missing <- denom_n[gi] - n_gi
+    paste0(n_gi, "(", missing, ")")
+  }, character(1))
+  miss_total <- total_n - total_all
+  total_row  <- c("  合计(Missing)", total_row_cells,
+                   paste0(total_all, "(", miss_total, ")"))
 
+  # 变量标签首行
+  header_row <- c(ana_label, rep("", grp_num + 1))
+
+  all_rows <- c(list(header_row), cat_rows)
+  if (coltotal == 1) all_rows <- c(all_rows, list(total_row))
+
+  out_df <- as.data.frame(do.call(rbind, all_rows), stringsAsFactors = FALSE)
+  col_name_label  <- ".label"
+  col_name_groups <- paste0("_np", seq_len(grp_num))
+  names(out_df) <- c(col_name_label, col_name_groups, "_np999")
+
+  # 单组别：去掉 _np1
+  if (grp_num == 1L) {
+    out_df[["_np999"]] <- out_df[["_np1"]]
+    out_df[["_np1"]]   <- NULL
+  }
+
+  # ============================================================
+  # Step 6：累积到全局缓存
+  # ============================================================
+  .append_table_cache(value = out_df)
+
+  if (outyn != 1) return(invisible(NULL))
+
+  # ============================================================
+  # Step 7：outyn=1 → 构造 varlist，调用 report_table()，清空缓存
+  # ============================================================
+  out_df <- .consume_table_cache()
+
+  # 确保所有目标列存在
+  need_cols <- c(".label", if (grp_num > 1L) paste0("_np", seq_len(grp_num)), "_np999")
+  out_df <- .ensure_report_columns(out_df, need_cols)
+
+  # 构建 varlist 字符串
+  varlist_str <- paste0(".label/")
+
+  if (grp_num > 1L) {
+    for (i in seq_len(grp_num)) {
+      lbl <- paste0(grpnames[i], "$(N=", denom_n[i], ")")
+      varlist_str <- paste0(varlist_str, "|_np", i, "/", lbl)
     }
-  }
-
-  n2_ <- d_1 %>%
-    dplyr::group_by(grpcd_) %>%
-    dplyr::summarise(
-      n = dplyr::n(),  # 计数每个组的观测值数量
-    )
-
-  n2_ <- as.data.frame(t(n2_))
-  col_names <- as.character(n2_[1, ])  # 提取第一行作为列名，转换为字符型
-  names(n2_) <- col_names  # 设置新的列名
-
-  n2_ <- n2_[-1, ]  # 删除第一行
-  names(n2_) <- col_names  # 设置新的列名
-
-  n2_$d999_ <-0
-
-  n2_$d999_ <- rowSums(n2_)
-
-  n2_$BREAK_ <- NA
-
-  ##################将连续命名的变量提取###########
-  need_col <- paste0('', 1:grp_num )
-
-  n3_ <- dplyr::left_join(cat_, n1_, by = "catorder_") %>%
-    dplyr::select(catorder_,catlabel_,BREAK_,dplyr::all_of(need_col))
-
-  for (i in 1:grp_num) {
-    for (s_ in 1:catnum_) {
-      if(is.na(n3_[s_,3+i]) ){
-        n3_[s_,3+i] = 0
-      }
+    if (rowtotal == 1) {
+      lbl <- paste0("合计$(N=", total_n, ")")
+      varlist_str <- paste0(varlist_str, "|_np999/", lbl)
     }
+  } else {
+    lbl <- paste0("合计$(N=", total_n, ")")
+    varlist_str <- paste0(varlist_str, "|_np999/", lbl)
   }
 
-  #########################整合结果
-  n_name <- paste0("n_", 1:grp_num)
-  d_name <- paste0("d_", 1:(grp_num))
-  p_name <- paste0("p_", 1:grp_num)
-  denom_cols <- c(d_name, p_name)
-  n3_[denom_cols] <- NA
-
-  n3_$n999_ <- NA
-  n3_$d999_ <- NA
-  n3_$p999_ <- NA
-
-  n999_index <- which(names(n3_) == "n999_")
-  d999_index <- which(names(n3_) == "d999_")
-  p999_index <- which(names(n3_) == "p999_")
-  catorder_999_r <- which(n3_$catorder_ == 999)
-
-  for (i in 1:grp_num) {
-    for (s_ in 1:catnum_) {
-      n3_[s_,3+grp_num+i] <- n3_[n3_$catorder_ == 999,3+i]
-      n3_[s_,3+grp_num+grp_num+i] <-sprintf("%.2f",( n3_[s_,3+i]/n3_[n3_$catorder_ == 999,3+i])*100)
-      start_col <- 4  # 第四列的索引
-      end_col <- 3 + grp_num  # 结束列的索引
-      n3_$n999_ <- rowSums(n3_[,start_col:end_col ])
-    }
-  }
-
-  for (i in 1:catnum_) {
-    n3_[i,d999_index] <- n3_[catorder_999_r,n999_index]
-    n3_[catorder_999_r,d999_index] <- n2_[1,grp_num+1]
-    n3_[i,p999_index] <- sprintf("%.2f",( n3_[i,n999_index]/n3_[i,d999_index])*100)
-  }
-
-  n4_ <- n3_
-  np_name <- paste0("np_", 1:grp_num)
-  np_cols <- c(np_name)
-  n4_[np_cols] <- NA
-  n4_$np999_ <- NA
-  np999_index <- which(names(n4_) == "np999_")
-
-  for (i in 1:grp_num) {
-    for (s_ in 1:catnum_) {
-      n4_[s_,3+3+(grp_num*3)+i] <-  paste( n4_[s_,3+i] ,'(',n4_[s_,3+(grp_num*2)+i],')')
-      n4_[s_,np999_index] <- paste( n4_[s_,which(names(n4_) == "n999_")] ,'(',n4_[s_,which(names(n4_) == "p999_")] ,')')
-    }
-
-    n4_[which(n4_$catorder_ == 999) ,3+3+(grp_num*3)+i] <- paste( n4_[which(n4_$catorder_ == 999) ,3+i],'(',n2_[1,i]-n4_[which(n4_$catorder_ == 999) ,3+i] ,')')
-
-    n4_[which(n4_$catorder_ == 999) ,which(names(n4_) == "np999_")] <- paste(
-      n4_[which(n4_$catorder_ == 999) ,which(names(n4_) == "n999_")],
-      '(',
-      n4_[which(n4_$catorder_ == 999) ,which(names(n4_) == "d999_")]-n4_[which(n4_$catorder_ == 999) ,which(names(n4_) == "n999_")],
-      ')'
-    )
-  }
-
-  ###########最终数据列提取
-
-  t_0 <- n4_%>%
-    dplyr::select(catlabel_,all_of(np_name),np999_)
-  #创建与t_0变量名称与变量数量相同且只有一行空行的数据框
-  t_1 <- data.frame(matrix(NA, nrow = 1, ncol = ncol(t_0), dimnames = list(NULL, names(t_0))))
-
-  #为数据添加分析变量label
-  t_2 <- dplyr::bind_rows(t_1,t_0)
-  t_2[1,1] <- avalabel_
-  t_2<<-t_2
-
-  ####制作表头
-
-  title_0 <- d_1 %>%
-    dplyr::group_by(grpcd_) %>%
-    dplyr::summarise(
-      n = dplyr::n(),  # 计数每个组的观测值数量
-    )
-
-  title_0_1 <- d_1 %>%
-    dplyr::summarise(
-      grpcd_ = 999,
-      n = dplyr::n(),  # 计数每个组的观测值数量
-    )
-
-  title_0 <- dplyr::bind_rows(title_0,title_0_1)
-  title_0$grp_name <- c(grpnames_,'合计')
-  title_0$grp_n <- paste(title_0$grp_name,'\n(N = ',title_0$n, ')')
-  title_0 <- title_0 %>% dplyr::select( grp_n )
-  title_0 <- data.frame(t(title_0))
-
-  NA_column <- rep(NA, nrow(title_0))  # 使用rep()函数创建一个长度为nrow(df)的NA向量
-
-  # 使用cbind()函数将新列添加到df的最左侧
-  title_0 <- cbind(NA_column, title_0)
-
-  #数据框重命名
-  names(title_0) <- c('catlabel_',dplyr::all_of(np_name),'np999_')
-
-  if (coltotal==0){
-    t_2 <- subset(t_2, catlabel_ != '合计')
-  }
-
-  if (rowtotal==0){
-    title_0 <- title_0[, -which(names(title_0) == "np999_")]
-    t_2 <- t_2[, -which(names(t_2) == "np999_")]
-  }
-
-  if (exists('table_out')==FALSE){
-    table_out<-title_0
-  }
-
-  table_out <- dplyr::bind_rows(table_out,t_2)
-  table_out <<-table_out
-
-  col_names <- table_out[1, ]
-  col_names[1,1] <- '  '
-  table_out <- dplyr::slice(table_out, -1)# 移除第一行
-  names(table_out) <- col_names # 将第一行的值设置为列名
-
-  # ----------------------------define param----------------------------
-  caption_paragraph <- flextable::as_paragraph(
-    flextable::as_chunk(table_title, props = officer::fp_text(font.family = "Times New Roman",font.size = 10.5))
+  ft <- report_table(
+    data     = out_df,
+    varlist  = varlist_str,
+    title    = table_title,
+    footnote = ftnote
   )
 
-  caption_paragraph_props <- officer::fp_par(padding = 0)
-  # --------------------------------------------------------------------
-
-  if (outyn == 1) {
-    # 绘制表格
-    ft <- flextable::flextable(table_out)
-    ft <- flextable::color(ft, part = 'footer', color = 'black')
-    ft <- flextable::set_caption(ft, caption = caption_paragraph,fp_p=caption_paragraph_props,align_with_table=TRUE)
-    ft <- flextable::set_table_properties(ft, align="left")
-    ft <- flextable::font(ft, fontname = "SimSun", part = "all")
-    ft <- flextable::font(ft, fontname = "Times New Roman", part = "all")
-
-    border_style <- officer::fp_border(color = "black", width = 1.5)
-    border_style_thin <- officer::fp_border(color = "black", width = 1)
-
-    ft <- flextable::hline_top(ft, border = border_style, part = "header")
-    ft <- flextable::hline_bottom(ft, border = border_style, part = "body")
-    ft <- flextable::hline(ft, i = 1, border = border_style_thin, part = "header")
-    ft <- flextable::add_footer_lines(ft, ftnote)
-    ft <- flextable::autofit(ft)
-
-    if (exists('table_out', envir = .GlobalEnv)) rm(table_out, envir = .GlobalEnv)
-    if (exists('t_2', envir = .GlobalEnv)) rm(t_2, envir = .GlobalEnv)
-
-    return(ft)
-  } else {
-    return(NULL)
-  }
+  .attach_report_attrs(ft, varlist_str, table_title, ftnote)
 }
-
-

@@ -1,181 +1,281 @@
-#' lifetest_pic
+# =============================================================================
+# utils_lifetest_pic.R
+# 生存分析绘图函数（R 包内部版本）
+#
+# 使用 ggsurvfit 绘制 Kaplan-Meier 生存曲线，
+# 通过 figtitle() 自动生成带编号的图标题。
+# 支持 color/lintype/marktype 参数（SAS 兼容映射），
+# 手动构建风险表，patchwork 组合主图+风险表。
+# =============================================================================
+
+#' 生存分析绘图
 #'
-#' @description A utils function
+#' @param inds         数据框对象
+#' @param data_cond    数据筛选条件
+#' @param group_c      分组描述："分组变量名|组名1/组名2/..."
+#' @param censor       删失变量名
+#' @param type         0=生存率，1=失效率，2=累积风险，3=cloglog
+#' @param time_label   时间描述："时间变量名|时间变量标签"
+#' @param timelist     时间点列表（数值向量）
+#' @param censorvalue  删失变量值（保留参数）
+#' @param ylabel       Y 轴标签
+#' @param pic_title    图标题文字（不含编号，编号由 figtitle 自动生成）
+#' @param color        各组曲线颜色，\| 分隔
+#' @param lintype       各组曲线线型，\| 分隔（支持 SAS 线型名）
+#' @param marktype     删失标记形状，\| 分隔（支持 SAS 形状名）
+#' @param footnote     底注内容
+#' @param width_in     图形宽度（英寸），默认 5.73
+#' @param height_in    图形高度（英寸），默认 4.17
+#' @param dpi          图形分辨率，默认 96
+#' @param top          两个图例框之间的垂直间距（像素 @ 96 DPI），默认 15
 #'
-#' @return The return value, if any, from executing the utility.
-#'
-#' @importFrom dplyr filter select
-#' @importFrom rlang sym parse_expr
-#' @importFrom survival survfit Surv
-#' @importFrom ggsurvfit ggsurvfit add_risktable add_censor_mark
-#' @importFrom ggplot2 ggplot_build labs scale_x_continuous scale_y_continuous theme_classic theme element_text unit element_blank
+#' @return ggplot 对象
 #' @noRd
-#######生存分析绘图#########
+lifetest_pic <- function(inds, data_cond, group_c, censor, type, time_label,
+                         timelist, censorvalue, ylabel, pic_title,
+                         color    = "blue|red|green|black|purple|orange",
+                         lintype  = "solid|dashed|dotted|dotdash|longdash|twodash",
+                         marktype = "circle|triangle|triangledown|triangleleft|triangleright|circlefilled",
+                         footnote    = NULL,
+                         width_in    = 5.73,
+                         height_in   = 4.17,
+                         dpi         = 96,
+                         top         = 15) {
 
-# 用途：输出生存分析图，进行log-rank检验
-
-#基本参数：
-# data_cond=                 要分析的数据集|<条件>
-# group_c=                   组别变量|组别1/组别2/……；不能为缺失
-# censor                     删失变量
-# type                        =0时输出生存率，=1时输出失效率
-# time_label                 时间|时间变量的label；时间不能为空值，负值；
-# timelist                   指定一系列的时间点
-# censorvalue                删失变量值
-# ylabel                     图片y轴的标签
-# pic_title                       输出的图片的title
-
-
-#示例
-# adhj <- read_excel("E:/Rlanguage/2 - system/函数/8.lifetest/SAS程序与数据/adhj.xlsx")
-
-# lifetest_pic(
-#   data_cond="adhj|RANDYN=='是' & FAS=='是'  & fxyn==1 & anafl=='是'"
-#   ,group_c="arm3|试验组/对照组"
-#   ,censor="censor"
-#   ,type=0
-#   ,time_label="lgzzhj|时间（h）"
-#   ,timelist=c(0,2,4,6,10,14,18,24,48,72)
-#   ,censorvalue=0
-#   ,ylabel="流感症状未缓解率(%)"
-#   ,pic_title="各时点流感症状缓解率的Kaplan-Meier估计（FAS）"
-# )
-
-
-
-
-
-lifetest_pic <- function(inds,data_cond,group_c,censor,type,time_label,timelist,censorvalue,ylabel,pic_title)
-{
-
-  #生存分析
-  library(readxl)
-  library(dplyr)
-  library(table1)
-  library(tibble)
-  library(kableExtra)
-  library(officer)
-  library(flextable)
-  library(rlang)
-  library(gmodels)
-  library(tidyr)
-  library(purrr)
-  library(survminer)
   library(survival)
   library(ggsurvfit)
   library(ggplot2)
+  library(dplyr)
+  library(tidyr)
+  library(rlang)
   library(patchwork)
 
-  ################## 拆分组别、分析变量 ################################
+  # ============================================================
+  # Step 1：解析参数
+  # ============================================================
+  grp_parts <- strsplit(group_c, "|", fixed = TRUE)[[1]]
+  grpvar    <- trimws(grp_parts[1])
+  grpnames  <- trimws(strsplit(grp_parts[2], "/", fixed = TRUE)[[1]])
+  grpnames  <- grpnames[nchar(grpnames) > 0]
+  n_grp     <- length(grpnames)
 
-  #拆分组别变量，组别名称；计算组别个数
-  grp_part <- unlist(strsplit(group_c,"|",fixed = TRUE))
-  grpvar_ <- grp_part[1]
-  grpnames_ <- grp_part[2]
+  tl_parts <- strsplit(time_label, "|", fixed = TRUE)[[1]]
+  time_var <- trimws(tl_parts[1])
+  x_label  <- if (length(tl_parts) >= 2) trimws(tl_parts[2]) else time_var
 
-
-  grpnames_ <- unlist(strsplit(grpnames_,"/",fixed = TRUE))
-
-  #建立list来存储连续生成的组别名称
-  cat_grpname <- list()
-  s_ <- 1
-  while (s_ <= length(grpnames_) && grpnames_[s_] != "") {
-    cat_grpname[[s_]] <- grpnames_[s_]
-    s_ <- s_ + 1
-    grp_num=s_ - 1
-  }
-
-  ###########制作分析数据集###############
-  #拆分分析变量和标签
-  timevarlabel_part <- unlist(strsplit(time_label,"|",fixed = TRUE))
-  timevar_ <- timevarlabel_part[1]
-  timelabel_ <- timevarlabel_part[2]
-
-  #直接传递数据对象，不再使用get(data_name)的形式获取数据,避免无法获得交互数据
-  cond_ <- data_cond
-
-
-  data_0 <- inds
-  data_0 <- data_0 %>%
-    dplyr::filter(!!rlang::parse_expr(cond_))
-  group_cond <- c(grpnames_)
-  data_0 <- data_0 %>%
-    dplyr::filter(.data[[grpvar_]] %in% group_cond )
-  time_var_expr <- rlang::sym(timevar_)
-  censor_var_expr <- rlang::sym(censor)
-  group_expr <- rlang::sym(grpvar_)
-
-  d_0 <- data_0 %>%
-    select({{time_var_expr}},{{censor_var_expr}},{{group_expr}})
-  d_0 <- setNames(d_0,c("time_0","censor_0","group_0"))
-  d_0$grpcd_ <- NA
-  for(i in 1:nrow(d_0)){
-    for (s_ in 1:grp_num){
-      if (d_0$group_0[i] == cat_grpname[[s_]]){
-        d_0$grpcd_[i] <- s_
-      }
-    }
-  }
-
-  # 与分析表格不同，这里直接因子化便于将标题映射到图片上
-  d_0$grpcd_ <- factor(d_0$group_0, levels = grpnames_, labels = grpnames_)
-
-
-  ##### 制作生存曲线 #########
-  # 先获取拟合对象，然后用scale产生的颜色映射
-  fit <- ggsurvfit::survfit2(survival::Surv(time_0, censor_0) ~ grpcd_, data = d_0,
-                        conf.type = "log-log", start.time = 0)
-
+  # type 映射（兼容数值和字符输入）
   type_mapping <- switch(as.character(type),
-                         "0" = "survival",
-                         "1" = "risk",
-                         "2" = "cumhaz",
-                         "3" = "cloglog",
-                         "survival"  # 默认值
+    "0" = "survival",
+    "1" = "risk",
+    "2" = "cumhaz",
+    "3" = "cloglog",
+    "survival" = "survival",
+    "risk"     = "risk",
+    "cumhaz"   = "cumhaz",
+    "cloglog"  = "cloglog",
+    "survival"
   )
 
-  # 创建绘图对象
-  p_default <- ggsurvfit::ggsurvfit(fit, type = type_mapping, linetype_aes = TRUE, linewidth = 0.9)
-  # 获取实际使用的颜色映射
-  color_mapping <- ggplot2::ggplot_build(p_default)$data[[1]]$colour  # 获取曲线的颜色
-  unique_colors <- unique(color_mapping)
+  # ============================================================
+  # Step 1b：解析 color / lintype / marktype 参数
+  # ============================================================
+  # 颜色
+  color_vals <- tolower(trimws(strsplit(color, "|", fixed = TRUE)[[1]]))
+  color_vals <- rep_len(color_vals, n_grp)
 
+  # 线型：SAS 线型名 → ggplot2 linetype 字符串映射
+  sas_lintype_map <- c(
+    solid               = "solid",
+    shortdash           = "dashed",
+    mediumdash          = "longdash",
+    longdash            = "longdash",
+    mediumdashshortdash = "dotdash",
+    dashdashdot         = "twodash",
+    dashed              = "dashed",
+    dotted              = "dotted",
+    dotdash             = "dotdash",
+    twodash             = "twodash"
+  )
+  lintype_raw  <- trimws(strsplit(lintype, "|", fixed = TRUE)[[1]])
+  lintype_vals <- vapply(tolower(lintype_raw), function(x) {
+    if (x %in% names(sas_lintype_map)) sas_lintype_map[[x]] else x
+  }, character(1))
+  lintype_vals <- rep_len(lintype_vals, n_grp)
 
-  p_default +
-    ggsurvfit::add_risktable(risktable_height = 0.15,
-                  risktable_stats = c("{n.risk}"),
-                  stats_label = list(n.risk = "No. at Risk"),
-                  size = 5,
-                  hjust = 0.5,
-                  mapping = aes(color = strata),
-                  theme = list(
-                    theme_risktable_default(axis.text.y.size = 14,
-                                            plot.title.size = 14),
-                    theme(plot.title = element_text(face = "bold"),
-                          axis.text.y = element_text(face = "bold", color = unique_colors
-                          )
-                    )
-                  )
-    )+
-    ggsurvfit::add_censor_mark(size = 3,
-                    stroke = 1.5,
-                    aes(shape = n.censor)
-    ) +#添加删失标记
-    ggplot2::labs(title = pic_title,
-         x = timelabel_,
-         y = ylabel
+  # 删失形状：SAS marktype 名 → ggplot2 shape 数值映射
+  sas_shape_map <- c(
+    circle        = 1L,
+    triangle      = 2L,
+    triangledown  = 6L,
+    triangleleft  = 60L,
+    triangleright = 62L,
+    circlefilled  = 16L
+  )
+  marktype_raw <- trimws(strsplit(marktype, "|", fixed = TRUE)[[1]])
+  shape_vals   <- vapply(tolower(marktype_raw), function(x) {
+    if (x %in% names(sas_shape_map)) sas_shape_map[[x]] else 3L
+  }, integer(1))
+  shape_vals <- rep_len(shape_vals, n_grp)
+
+  # 命名向量：key = 组名
+  color_named    <- setNames(color_vals, grpnames)
+  shape_named    <- setNames(shape_vals, grpnames)
+  linetype_named <- setNames(lintype_vals, grpnames)
+
+  # ============================================================
+  # Step 2：筛选数据
+  # ============================================================
+  data_0 <- inds
+  data_0 <- data_0 |> dplyr::filter(!!rlang::parse_expr(data_cond))
+  data_0 <- data_0 |> dplyr::filter(.data[[grpvar]] %in% grpnames)
+
+  d_0 <- data_0 |>
+    dplyr::select(dplyr::all_of(c(time_var, censor, grpvar))) |>
+    stats::setNames(c("time_0", "censor_0", "group_0"))
+
+  d_0$grpcd_ <- factor(d_0$group_0, levels = grpnames, labels = grpnames)
+
+  # ============================================================
+  # Step 3：标题（由 plot_to_docx 中的 figtitle 统一生成编号）
+  # ============================================================
+
+  # ============================================================
+  # Step 4：KM 生存曲线基础对象（不含风险表）
+  # ============================================================
+  fit <- ggsurvfit::survfit2(
+    survival::Surv(time_0, censor_0) ~ grpcd_, data = d_0,
+    conf.type = "log-log", start.time = 0
+  )
+
+  p_main <- ggsurvfit::ggsurvfit(fit, type = type_mapping, linetype_aes = TRUE,
+                                  linewidth = 0.9) +
+    # 手动添加删失标记
+    ggplot2::geom_point(
+      data = function(d) {
+        d2 <- d[!is.na(d$n.censor) & d$n.censor > 0, , drop = FALSE]
+        if (nrow(d2) == 0) return(d2)
+        tidyr::uncount(d2, weights = n.censor)
+      },
+      ggplot2::aes(x = .data$time, y = .data$estimate,
+                    color = .data$strata, shape = .data$strata),
+      size = 3, stroke = 1.5, na.rm = TRUE, show.legend = TRUE
     ) +
-    ggplot2::scale_x_continuous(breaks = timelist, limits = c(0, max(timelist)), expand = c(0.05, 0)) +
-    ggplot2::scale_y_continuous(breaks = seq(0, 1, 0.2), labels = seq(0, 100, 20), limits = c(0, 1.05), expand = c(0.05, 0)) +
+    ggplot2::labs(
+      title = NULL,
+      x     = x_label,
+      y     = if (!is.null(ylabel)) ylabel else
+                switch(type_mapping,
+                  "survival" = "生存率(%)",
+                  "risk"     = "失效率(%)",
+                  "cumhaz"   = "累积风险",
+                  "生存率(%)"
+                )
+    ) +
+    ggplot2::scale_x_continuous(breaks = timelist, expand = c(0.02, 0)) +
+    ggplot2::coord_cartesian(xlim = c(0, max(timelist)), clip = "off") +
+    ggplot2::scale_y_continuous(breaks = seq(0, 1, 0.2), labels = seq(0, 100, 20),
+                                limits = c(0, 1.05), expand = c(0.05, 0)) +
     ggplot2::theme_classic() +
-    ggplot2::theme(axis.text = element_text(size = 14, color = "black"),
-          axis.ticks.length = unit(2, "mm"),
-          axis.title.y = ggplot2::element_text(size = 14, color = "black"),
-          axis.title.x = ggplot2::element_text(size = 14, color = "black"),
-          panel.grid = ggplot2::element_blank(),
-          legend.text = ggplot2::element_text(size = 13, color = "black"),
-          legend.background = ggplot2::element_blank(),
-          legend.position = c(0.9, 0.9),
-          legend.direction = "horizontal")
+    ggplot2::theme(
+      axis.text          = ggplot2::element_text(size = 14, color = "black"),
+      axis.ticks.length  = ggplot2::unit(2, "mm"),
+      axis.title.y       = ggplot2::element_text(size = 14, color = "black"),
+      axis.title.x       = ggplot2::element_text(size = 14, color = "black"),
+      panel.grid         = ggplot2::element_blank(),
+      legend.text        = ggplot2::element_text(size = 13, color = "black"),
+      legend.background  = ggplot2::element_blank(),
+      legend.position    = if (type_mapping == "survival") c(0.9, 0.9) else c(0.1, 0.9),
+      legend.box         = "vertical",
+      legend.direction   = "horizontal",
+      legend.spacing.y   = ggplot2::unit(5, "pt"),
+      plot.margin        = ggplot2::margin(t = 5.5, r = 5.5, b = 0, l = 5.5)
+    ) +
+    # 隐藏颜色图例（避免与 linetype 图例重复）
+    ggplot2::scale_color_manual(values = color_named, guide = "none") +
+    # 线条类型图例
+    ggplot2::scale_linetype_manual(
+      values = linetype_named,
+      guide  = ggplot2::guide_legend(
+        title = NULL, order = 1, keywidth = ggplot2::unit(1.5, "cm"),
+        override.aes = list(shape = NA, color = unname(color_named),
+                            linetype = unname(linetype_named))
+      )
+    ) +
+    # 删失形状图例
+    ggplot2::scale_shape_manual(
+      values = shape_named,
+      guide  = ggplot2::guide_legend(
+        title        = "删失",
+        title.theme  = ggplot2::element_text(
+          size   = 10.5,
+          color  = "black",
+          margin = ggplot2::margin(
+            l = (1.5 - 0.4) * 72 / 2.54 - 4,
+            r = 4, b = 2, t = 0, unit = "pt"
+          )
+        ),
+        order        = 2,
+        keywidth     = ggplot2::unit(0.4, "cm"),
+        override.aes = list(color = unname(color_named))
+      )
+    )
 
+  # ============================================================
+  # Step 5：手动构建风险表（独立 ggplot，颜色完全可控）
+  # ============================================================
+  strata_names <- names(fit$strata)
+  grp_labels   <- sub("^[^=]*=", "", strata_names)
+  risk_levels  <- rev(grp_labels)
+
+  summ_risk    <- summary(fit, times = timelist, extend = TRUE)
+  risk_summ_df <- data.frame(
+    grp    = sub("^[^=]*=", "", as.character(summ_risk$strata)),
+    time   = summ_risk$time,
+    n_risk = summ_risk$n.risk,
+    stringsAsFactors = FALSE
+  )
+
+  risk_df <- do.call(rbind, lapply(seq_along(grp_labels), function(s) {
+    sub_df <- risk_summ_df[risk_summ_df$grp == grp_labels[s], ]
+    data.frame(
+      time   = sub_df$time,
+      n_risk = sub_df$n_risk,
+      group  = factor(grp_labels[s], levels = risk_levels),
+      stringsAsFactors = FALSE
+    )
+  }))
+
+  risk_color_named <- setNames(color_vals[seq_along(grp_labels)], grp_labels)
+
+  rt <- ggplot2::ggplot(risk_df, ggplot2::aes(x = time, y = group, label = n_risk)) +
+    ggplot2::geom_text(ggplot2::aes(color = group), size = 3.7, hjust = 0.5, show.legend = FALSE) +
+    ggplot2::scale_color_manual(values = risk_color_named) +
+    ggplot2::scale_x_continuous(breaks = timelist, expand = c(0.02, 0)) +
+    ggplot2::coord_cartesian(xlim = c(0, max(timelist)), clip = "off") +
+    ggplot2::labs(x = NULL, y = NULL, title = "No. at Risk") +
+    ggplot2::theme_minimal() +
+    ggplot2::theme(
+      plot.title       = ggplot2::element_text(size = 10.5, face = "bold", hjust = 0,
+                                               margin = ggplot2::margin(b = 0.5, unit = "mm")),
+      panel.spacing.y  = ggplot2::unit(1, "mm"),
+      axis.text.x      = ggplot2::element_blank(),
+      axis.text.y      = ggplot2::element_text(size = 10.5, face = "bold",
+                                               color = risk_color_named[risk_levels]),
+      axis.ticks       = ggplot2::element_blank(),
+      panel.grid       = ggplot2::element_blank(),
+      panel.border     = ggplot2::element_blank(),
+      plot.margin      = ggplot2::margin(t = 0, r = 5.5, b = 0, l = 5.5)
+    )
+
+  # ============================================================
+  # Step 6：组合主图 + 风险表（patchwork 垂直堆叠）
+  # ============================================================
+  risk_h    <- 0.2 + 0.25 * n_grp
+  risk_frac <- risk_h / height_in
+  main_frac <- 1 - risk_frac
+
+  p <- p_main / rt +
+    patchwork::plot_layout(heights = c(main_frac, risk_frac))
+
+  return(p)
 }

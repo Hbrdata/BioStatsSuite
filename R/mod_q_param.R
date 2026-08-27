@@ -64,6 +64,9 @@ mod_q_param_ui <- function(id) {
       checkboxInput(ns("pairt"), "配对t检验", value = FALSE),
       checkboxInput(ns("test_between"), "组间检验", value = TRUE),
 
+      # 是否立即出表
+      checkboxInput(ns("outyn"), "是否立即出表", value = TRUE),
+
       # 表格设置
       textInput(ns("title"), "表格标题", value = "定量参数分析"),
       textInput(ns("footnote"), "表格底注", value = "")
@@ -123,6 +126,7 @@ mod_q_param_server <- function(id, data_upload_module){
       updateCheckboxInput(session, "rowtotal", value = TRUE)
       updateCheckboxInput(session, "pairt", value = FALSE)
       updateCheckboxInput(session, "test_between", value = TRUE)
+      updateCheckboxInput(session, "outyn", value = TRUE)
 
       # 延迟重置清空参数标志
       shinyjs::delay(500, {
@@ -320,6 +324,7 @@ mod_q_param_server <- function(id, data_upload_module){
         } else {
           "TRUE"
         },
+        denominator_data = data_upload_module()$denominator_current_data,
         denominator_cond = if (!is.null(data_upload_module()$denominator_filter_text) &&
                                data_upload_module()$denominator_filter_text != "") {
           data_upload_module()$denominator_filter_text
@@ -330,7 +335,7 @@ mod_q_param_server <- function(id, data_upload_module){
         varlist = varlist_text,
         rowtotal = as.integer(input$rowtotal),
         pairt = as.integer(input$pairt),
-        outyn = 1,
+        outyn = as.integer(input$outyn),
         test_between = as.integer(input$test_between),
         title = input$title,
         footnote = input$footnote,
