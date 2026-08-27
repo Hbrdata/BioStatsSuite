@@ -68,7 +68,7 @@ mod_dataUpload_sidebar_ui <- function(id) {
               style = "flex: 1;",
               tags$small("支持格式: .xlsx, .xls, .sas7bdat, .rda, .RData, .csv, .txt",
                          style = "color: #2c3e50; line-height: 1.4; display: block;"),
-              tags$small("最大文件大小: 400MB",
+              tags$small("最大文件大小: 50MB",
                          style = "color: #2c3e50; line-height: 1.4; display: block; margin-top: 4px;")
             )
           )
@@ -147,14 +147,59 @@ mod_dataUpload_sidebar_ui <- function(id) {
         tags$div(style = "margin-top: 20px; padding-top: 15px; border-top: 1px dashed #dee2e6;",
                  mod_data_filter_ui(ns("data_filter_1"),type="数据筛选", show_apply_button = TRUE)
         )
+      ),
+
+      # 分母数据集模块
+      conditionalPanel(
+        condition = paste0("output['", ns("has_data"), "'] && output['", ns("show_denominator_filter"), "']"),
+        tags$div(
+          style = "margin-top: 20px; padding-top: 15px; border-top: 1px dashed #dee2e6;",
+          tags$div(
+            style = "border: 1px solid #e1e5f1; padding: 15px; border-radius: 8px; background: linear-gradient(135deg, #fff8f0 0%, #fff5e6 100%);",
+            # 标题
+            tags$div(
+              style = "display: flex; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f0c040;",
+              icon("divide", style = "color: #e67e22; margin-right: 8px; font-size: 16px;"),
+              tags$strong("分母数据集（可选）", style = "margin: 0; color: #2c3e50; font-size: 14px;")
+            ),
+            # 提示信息
+            tags$div(
+              style = "background-color: #fff3cd; padding: 10px; border-radius: 5px; margin-bottom: 12px; border: 1px solid #ffeaa7;",
+              tags$div(
+                style = "display: flex; align-items: flex-start;",
+                icon("info-circle", style = "color: #856404; margin-right: 8px; margin-top: 2px; flex-shrink: 0;"),
+                tags$div(
+                  style = "flex: 1;",
+                  tags$small("分母数据集应为受试者水平数据（如ADSL），每个受试者仅一条记录，用于计算表头各组N值。",
+                             style = "color: #856404; line-height: 1.4; display: block;"),
+                  tags$small("若不上传，将使用分析数据集自身作为分母。",
+                             style = "color: #856404; line-height: 1.4; display: block; margin-top: 4px;")
+                )
+              )
+            ),
+            # 分母文件上传
+            tags$div(
+              style = "margin-bottom: 10px;",
+              fileInput(ns("denominator_file"), "上传分母数据文件",
+                        accept = c(".xlsx", ".xls", ".sas7bdat", ".rda", ".RData", ".csv", ".txt"),
+                        buttonLabel = "选择文件...",
+                        placeholder = "Excel、SAS、CSV或R数据文件")
+            ),
+            # 分母示例数据选择
+            tags$div(
+              style = "margin-bottom: 10px;",
+              uiOutput(ns("denominator_example_selector"))
+            ),
+            # 分母状态指示
+            uiOutput(ns("denominator_status")),
+            # 分母筛选条件
+            tags$div(
+              style = "margin-top: 10px;",
+              mod_data_filter_ui(ns("denominator_filter_1"), type = "分母筛选", show_apply_button = FALSE)
+            )
+          )
+        )
       )
-      # 分母筛选模块
-      # ,conditionalPanel(
-      #   condition = paste0("output['", ns("has_data"), "'] && output['", ns("show_denominator_filter"), "']"),
-      #   tags$div(style = "margin-top: 20px; padding-top: 15px; border-top: 1px dashed #dee2e6;",
-      #            mod_data_filter_ui(ns("denominator_filter_1"),type="分析人数", show_apply_button = FALSE)
-      #            )
-      # )
     )
   )
 }
@@ -239,6 +284,10 @@ mod_dataUpload_server <- function(id){
       reset_trigger = 0,
       show_denominator_filter = FALSE,
       denominator_filter_text = "",
+      denominator_raw_data = NULL,
+      denominator_current_data = NULL,
+      denominator_data_name = NULL,
+      denominator_example_loaded = FALSE,
       file_type = NULL,
       example_data_loaded = FALSE,
       current_analysis_type = NULL,
@@ -263,12 +312,16 @@ mod_dataUpload_server <- function(id){
       ns <- session$ns
 
       example_data_choices <- c(
-        "描述性统计；分类变量描述" = "adsl",
+        "描述性统计；分类变量描述；卡方检验" = "adsl",
         "秩和检验" = "tyypspa",
         "协方差分析" = "adts",
-        "组间/组内比较" = "cov_adur",
+        "组间/组内比较；配对t检验；非参数检验" = "cov_adur",
         "2*2列联表" = "adcrslb",
-        "生存分析" = "adhj"
+        "生存分析" = "adhj",
+        "CMH检验；率差分析" = "tyypspa_example",
+        "不良事件频数分析；事件发生率" = "adae",
+        "折线图可视化" = "ex2_vist",
+        "Tmax非参数检验" = "tmax_demo"
       )
 
       selectInput(
@@ -277,6 +330,79 @@ mod_dataUpload_server <- function(id){
         choices = c("选取数据集..." = "", example_data_choices),
         selected = rv$current_example_data_name
       )
+    })
+
+    # 分母示例数据映射：分析数据集 -> 推荐分母数据集
+    DENOMINATOR_MAP <- list(
+      adae = "adsl",
+      adcm = "adsl",
+      adlb = "adsl",
+      adsl = "adsl",
+      cov_adur = "adsl",
+      adts = "adsl",
+      adcrslb = "adsl",
+      adhj = "adsl",
+      tyypspa = "adsl",
+      tyypspa_example = "adsl",
+      ex2_vist = "adsl",
+      tmax_demo = "adsl"
+    )
+
+    # 分母示例数据选择器UI
+    output$denominator_example_selector <- renderUI({
+      ns <- session$ns
+
+      denom_choices <- c("选取分母数据集..." = "", "ADSL（受试者水平）" = "adsl")
+
+      tagList(
+        selectInput(
+          ns("denominator_example_choice"),
+          "分母示例数据集",
+          choices = denom_choices,
+          selected = if (rv$denominator_example_loaded) rv$denominator_data_name else ""
+        ),
+        # 自动推荐按钮
+        uiOutput(ns("denominator_suggest_btn"))
+      )
+    })
+
+    # 分母推荐按钮
+    output$denominator_suggest_btn <- renderUI({
+      ns <- session$ns
+      req(rv$example_data_loaded, rv$current_example_data_name)
+
+      suggested <- DENOMINATOR_MAP[[rv$current_example_data_name]]
+      if (!is.null(suggested) && !rv$denominator_example_loaded) {
+        actionButton(
+          ns("auto_suggest_denominator"),
+          paste0("推荐加载: ", toupper(suggested)),
+          icon = icon("magic"),
+          style = "background-color: #e67e22; color: white; border: none; border-radius: 5px; padding: 5px 10px; font-size: 12px; margin-top: 5px;"
+        )
+      }
+    })
+
+    # 分母状态指示
+    output$denominator_status <- renderUI({
+      ns <- session$ns
+      if (is.null(rv$denominator_raw_data)) {
+        tags$div(
+          style = "color: #6c757d; font-size: 12px; padding: 5px 0;",
+          icon("info-circle"), "未加载分母数据（将使用分析数据自身作为分母）"
+        )
+      } else {
+        tagList(
+          tags$div(
+            style = "color: #28a745; font-size: 12px; padding: 5px 0;",
+            icon("check-circle"),
+            paste0("已加载: ", rv$denominator_data_name,
+                   " (受试者数: ", nrow(rv$denominator_raw_data), ")")
+          ),
+          actionButton(ns("clear_denominator"), "清除分母数据",
+                       icon = icon("times"),
+                       style = "background-color: #dc3545; color: white; border: none; border-radius: 4px; padding: 3px 8px; font-size: 11px; margin-top: 5px;")
+        )
+      }
     })
 
     # 🟢 修改：加载示例数据的函数
@@ -299,7 +425,11 @@ mod_dataUpload_server <- function(id){
                      cov_adur = BioStatsSuite::cov_adur,
                      adts = BioStatsSuite::adts,
                      adcrslb = BioStatsSuite::adcrslb,
-                     adhj = BioStatsSuite::adhj
+                     adhj = BioStatsSuite::adhj,
+                     tyypspa_example = BioStatsSuite::tyypspa_example,
+                     adae = BioStatsSuite::adae,
+                     ex2_vist = BioStatsSuite::ex2_vist,
+                     tmax_demo = BioStatsSuite::tmax_demo
         )
 
         if (!is.data.frame(df)) {
@@ -350,6 +480,82 @@ mod_dataUpload_server <- function(id){
 
         load_example_data_wrapper(input$example_data_choice)
       }
+    })
+
+    # 加载分母数据的函数
+    load_denominator_data <- function(df, data_name) {
+      if (!is.data.frame(df)) {
+        showNotification("分母数据不是数据框格式", type = "error")
+        return()
+      }
+      rv$denominator_raw_data <- df
+      rv$denominator_current_data <- df
+      rv$denominator_data_name <- toupper(data_name)
+      rv$denominator_filter_text <- ""
+      rv$denominator_example_loaded <- TRUE
+      showNotification(
+        paste0("分母数据加载成功: ", toupper(data_name), " (N=", nrow(df), ")"),
+        type = "message"
+      )
+    }
+
+    # 分母文件上传
+    observeEvent(input$denominator_file, {
+      req(input$denominator_file)
+      tryCatch({
+        df <- read_data_file(
+          file_path = input$denominator_file$datapath,
+          file_name = input$denominator_file$name,
+          file_header = TRUE
+        )
+        data_name <- get_data_name(input$denominator_file$name)
+        load_denominator_data(df, data_name)
+      }, error = function(e) {
+        showNotification(paste("分母数据上传错误:", e$message), type = "error")
+      })
+    })
+
+    # 分母示例数据选择
+    observeEvent(input$denominator_example_choice, {
+      req(input$denominator_example_choice)
+      if (input$denominator_example_choice != "") {
+        tryCatch({
+          df <- switch(input$denominator_example_choice,
+                       adsl = BioStatsSuite::adsl,
+                       BioStatsSuite::adsl
+          )
+          load_denominator_data(df, input$denominator_example_choice)
+        }, error = function(e) {
+          showNotification(paste("加载分母示例数据错误:", e$message), type = "error")
+        })
+      }
+    })
+
+    # 自动推荐分母数据
+    observeEvent(input$auto_suggest_denominator, {
+      req(rv$current_example_data_name)
+      suggested <- DENOMINATOR_MAP[[rv$current_example_data_name]]
+      if (!is.null(suggested)) {
+        tryCatch({
+          df <- switch(suggested,
+                       adsl = BioStatsSuite::adsl,
+                       BioStatsSuite::adsl
+          )
+          load_denominator_data(df, suggested)
+        }, error = function(e) {
+          showNotification(paste("加载推荐分母数据错误:", e$message), type = "error")
+        })
+      }
+    })
+
+    # 清除分母数据
+    observeEvent(input$clear_denominator, {
+      rv$denominator_raw_data <- NULL
+      rv$denominator_current_data <- NULL
+      rv$denominator_data_name <- NULL
+      rv$denominator_filter_text <- ""
+      rv$denominator_example_loaded <- FALSE
+      showNotification("分母数据已清除", type = "message")
     })
 
     # 重置文件输入框UI的函数
@@ -433,12 +639,12 @@ mod_dataUpload_server <- function(id){
     # 初始化分母筛选模块
     denominator_filter_module <- mod_data_filter_server("denominator_filter_1", reactive({
       list(
-        raw_data = rv$raw_data,
+        raw_data = if (!is.null(rv$denominator_raw_data)) rv$denominator_raw_data else rv$raw_data,
         updateFilteredData = function(filtered_df, filter_text) {
           rv$denominator_filter_text <- filter_text
+          rv$denominator_current_data <- filtered_df
         },
         reset_trigger = rv$reset_trigger,
-        # 🟢 新增：传递数据更新触发器
         data_update_trigger = rv$data_update_trigger
       )
     }))
@@ -448,7 +654,10 @@ mod_dataUpload_server <- function(id){
       # 这里需要从外部获取当前分析类型
       req(getAnalysisType())
 
-      rv$show_denominator_filter <- (getAnalysisType() %in% c("c_describe","q_param"))
+      rv$show_denominator_filter <- (getAnalysisType() %in% c(
+        "c_describe", "q_describe", "q_param",
+        "q_pairt", "q_nonparam", "aecnp", "cnpsummary"
+      ))
     })
 
     # 输出控制分母筛选模块显示的状态
@@ -506,6 +715,10 @@ mod_dataUpload_server <- function(id){
       rv$is_filtered <- FALSE
       rv$filter_text <- ""
       rv$denominator_filter_text <- ""
+      rv$denominator_raw_data <- NULL
+      rv$denominator_current_data <- NULL
+      rv$denominator_data_name <- NULL
+      rv$denominator_example_loaded <- FALSE
       rv$is_resetting <- FALSE
       rv$file_type <- NULL
       rv$example_data_loaded <- FALSE
@@ -641,6 +854,7 @@ mod_dataUpload_server <- function(id){
         is_filtered = rv$is_filtered,
         filter_text = rv$filter_text,
         denominator_filter_text = rv$denominator_filter_text,
+        denominator_current_data = rv$denominator_current_data,
         show_denominator_filter = rv$show_denominator_filter,
         file_type = rv$file_type,
 

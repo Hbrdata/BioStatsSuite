@@ -31,21 +31,42 @@ mod_analyze_sidebar_ui <- function(id) {
                   choices = c("请选择..." = "",
                               "描述性统计" = "q_describe",
                               "分类变量描述" = "c_describe",
+                              "CMH检验" = "c_cmh",
                               "秩和检验" = "c_srt",
                               "协方差分析" = "covancova",
                               "组间/组内比较" = "q_param",
                               "2*2列联表" = "crosstable",
                               "生存分析" = "lifetest",
-                              "生存分析可视化" = "lifetest_pic"
+                              "生存分析可视化" = "lifetest_pic",
+                              "卡方检验" = "c_chisq",
+                              "率差分析" = "riskdiff",
+                              "不良事件频数分析" = "aecnp",
+                              "事件发生率" = "cnpsummary",
+                              "Tmax非参数检验" = "Tmax",
+                              "折线图可视化" = "pic_vline",
+                              "配对t检验" = "q_pairt",
+                              "非参数检验" = "q_nonparam"
                               # ,"自定义R脚本" = "custom_script"
-                              )
-                  ),
+                  )
+      ),
 
       # 条件面板
       uiOutput(ns("analysis_params")),
 
       # 🟢 修改：动态渲染操作按钮
       uiOutput(ns("action_buttons"))
+
+      # 操作按钮区域
+      # tags$div(
+      #   style = "display: flex; justify-content: space-between; margin-top: 15px;",
+      #   actionButton(ns("run"), "运行分析",
+      #                icon = icon("play-circle"),
+      #                style = "background-color: #27ae60; color: white; border: none; font-weight: bold; padding: 8px 16px; border-radius: 4px; flex: 1; margin-right: 5px;"
+      #   ),
+      #   actionButton(ns("clear_params"), "清空参数",
+      #                icon = icon("broom"),
+      #                style = "background-color: #e74c3c; color: white; border: none; flex: 1; margin-left: 5px;")
+      # )
     )
   )
 }
@@ -83,7 +104,7 @@ mod_analyze_tabPanel_ui <- function(id) {
                         background-color: white;
                         padding: 15px;
                         overflow: visible;",  # 改为 visible 允许内容扩展
-               uiOutput(ns("table_output"))
+               uiOutput(ns("result_output"))
              ),
 
              # 操作按钮区域 - 跟随内容
@@ -102,6 +123,10 @@ mod_analyze_tabPanel_ui <- function(id) {
                           downloadButton(ns("download_result"), "下载结果",
                                          class = "btn-primary",
                                          style = "background-color: #3498db; border-color: #3498db;"),
+                          # 🆕 代码下载按钮
+                          # downloadButton(ns("download_code"), "下载代码",
+                          #                class = "btn-success",
+                          #                style = "background-color: #27ae60; border-color: #27ae60;"),
                           actionButton(ns("clear_result"), "清除结果",
                                        icon = icon("trash"),
                                        style = "background-color: #e74c3c; color: white; border: none;")
@@ -129,6 +154,8 @@ mod_analyze_tabPanel_ui <- function(id) {
                    tags$br(),
                    tags$small("📊 下载结果: 获取RTF格式的分析表格",
                               style = "color: #2c3e50; line-height: 1.4; display: block;")
+                   # ,tags$small("📝 下载代码: 获取可复现的R代码",
+                   #            style = "color: #2c3e50; line-height: 1.4; display: block;")
                  )
                )
 
@@ -168,7 +195,17 @@ mod_analyze_server <- function(id, data_upload_module) {
       q_param = NULL,
       crosstable = NULL,
       lifetest = NULL,
-      lifetest_pic = NULL
+      lifetest_pic = NULL,
+      c_cmh = NULL,
+      c_chisq = NULL,
+      riskdiff = NULL,
+      aecnp = NULL,
+      cnpsummary = NULL,
+      Tmax = NULL,
+      pic_vline = NULL,
+      q_pairt = NULL,
+      q_nonparam = NULL,
+      custom_script = NULL
     )
 
     # 🟢 暴露当前分析类型
@@ -197,16 +234,7 @@ mod_analyze_server <- function(id, data_upload_module) {
         )
       }
 
-      switch(input$analysis_type,
-             "q_describe" = mod_q_describe_ui(ns("q_describe_1")),
-             "c_describe" = mod_c_describe_ui(ns("c_describe_1")),
-             "c_srt" = mod_c_srt_ui(ns("c_srt_1")),
-             "covancova" = mod_covancova_ui(ns("covancova_1")),
-             "q_param" = mod_q_param_ui(ns("q_param_1")),
-             "crosstable" = mod_crosstable_ui(ns("crosstable_1")),
-             "lifetest" = mod_lifetest_ui(ns("lifetest_1")),
-             "lifetest_pic" = mod_lifetest_pic_ui(ns("lifetest_pic_1"))
-      )
+      render_analysis_ui(input$analysis_type, ns)
     })
 
     # 在 mod_analyze_server 函数中添加
@@ -259,6 +287,15 @@ mod_analyze_server <- function(id, data_upload_module) {
     crosstable_params <- mod_crosstable_server("crosstable_1", data_upload_module)
     lifetest_params <- mod_lifetest_server("lifetest_1", data_upload_module)
     lifetest_pic_params <- mod_lifetest_pic_server("lifetest_pic_1", data_upload_module)
+    c_cmh_params <- mod_c_cmh_server("c_cmh_1", data_upload_module)
+    c_chisq_params <- mod_c_chisq_server("c_chisq_1", data_upload_module)
+    riskdiff_params <- mod_riskdiff_server("riskdiff_1", data_upload_module)
+    aecnp_params <- mod_aecnp_server("aecnp_1", data_upload_module)
+    cnpsummary_params <- mod_cnpsummary_server("cnpsummary_1", data_upload_module)
+    Tmax_params <- mod_Tmax_server("Tmax_1", data_upload_module)
+    pic_vline_params <- mod_pic_vline_server("pic_vline_1", data_upload_module)
+    q_pairt_params <- mod_q_pairt_server("q_pairt_1", data_upload_module)
+    q_nonparam_params <- mod_q_nonparam_server("q_nonparam_1", data_upload_module)
 
     observeEvent(input$run, {
       req(data_upload_module()$current_data)
@@ -354,7 +391,7 @@ mod_analyze_server <- function(id, data_upload_module) {
 
 
     # 🟢 修复：渲染结果列表和选择控件
-    output$table_output <- renderUI({
+    output$result_output <- renderUI({
       current_results <- results_list()
       current_selected <- selected_results()
 
@@ -401,6 +438,19 @@ mod_analyze_server <- function(id, data_upload_module) {
         current_selected <- selected_results()
 
         download_selected_results(current_selected, current_results, file)
+      }
+    )
+
+    # 🆕 代码下载处理器
+    output$download_code <- downloadHandler(
+      filename = function() {
+        paste0("analysis_code_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".R")
+      },
+      content = function(file) {
+        current_results <- results_list()
+        current_selected <- selected_results()
+
+        download_selected_code(current_selected, current_results, file)
       }
     )
 

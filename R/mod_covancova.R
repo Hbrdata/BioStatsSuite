@@ -223,7 +223,7 @@ mod_covancova_server <- function(id, data_upload_module){
           if (current_analysis_type == "covancova" && all(c("difftbsum", "SITEID", "TSORRES0sum", "arm3") %in% vars)) {
             message("🎯 设置协方差分析默认变量...")
             updateSelectizeInput(session, "dep_var", selected = "difftbsum")
-            updateTextInput(session, "dep_label", value = "用药后6周±3天")
+            updateTextInput(session, "dep_label", value = "访视2")
             updateSelectizeInput(session, "site_var", selected = "SITEID")
             updateTextInput(session, "site_label", value = "中心")
             updateSelectizeInput(session, "base_var", selected = "TSORRES0sum")

@@ -69,10 +69,10 @@ mod_q_describe_ui <- function(id) {
                 width = "100%"),
 
       # 合计列选项
-      checkboxInput(ns("totalyn"), "显示合计列", value = TRUE)
+      checkboxInput(ns("totalyn"), "显示合计列", value = TRUE),
 
-      # 🆕：表格叠加选项
-      # ,checkboxInput(ns("outyn"), "是否叠加表格", value = TRUE)
+      # 是否立即出表
+      checkboxInput(ns("outyn"), "是否立即出表", value = TRUE)
 
     )
   )
@@ -118,6 +118,7 @@ mod_q_describe_server <- function(id, data_upload_module) {
 
       # 重置复选框
       updateCheckboxInput(session, "totalyn", value = TRUE)
+      updateCheckboxInput(session, "outyn", value = TRUE)
 
       # 重置初始化状态
       rv$init_done <- FALSE
@@ -311,6 +312,13 @@ mod_q_describe_server <- function(id, data_upload_module) {
         } else {
           "TRUE"
         },
+        denominator_data = data_upload_module()$denominator_current_data,
+        denominator_cond = if (!is.null(data_upload_module()$denominator_filter_text) &&
+                               data_upload_module()$denominator_filter_text != "") {
+          data_upload_module()$denominator_filter_text
+        } else {
+          "TRUE"
+        },
         var_name = input$var_name,
         var_label = input$var_label,
         group_name = input$group_name,
@@ -318,8 +326,7 @@ mod_q_describe_server <- function(id, data_upload_module) {
         table_title = input$table_title,
         ftnote = input$ftnote,
         totalyn = as.numeric(input$totalyn),
-        # 🆕 新增：叠加表格选项
-        # outyn = as.numeric(input$outyn),
+        outyn = as.numeric(input$outyn),
 
 
         clear_params = clear_parameters

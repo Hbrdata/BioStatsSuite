@@ -1,309 +1,202 @@
-#' crosstable
+# =============================================================================
+# utils_crosstable.R
+# 实验室交叉表函数（R 包内部版本）
+#
+# 对应 SAS 宏 %crosstable，通过 report_table() 输出三线表。
+# =============================================================================
+
+#' 实验室交叉表
 #'
-#' @description A utils function
+#' @param inds         数据框对象
+#' @param data_cond    数据筛选条件
+#' @param group_c      分组描述："分组变量名|组名1/组名2/..."
+#' @param missing      缺失值替换内容
+#' @param row_colvar   行列变量描述："行变量/行标签|列变量/列标签"
+#' @param format       分类格式："值1=标签1|值2=标签2|..."
+#' @param table_title  表格标题
+#' @param footnote     底注内容
 #'
-#' @return The return value, if any, from executing the utility.
-#'
-#' @importFrom dplyr filter select group_by summarise bind_rows rename
-#' @importFrom tidyr pivot_wider
-#' @importFrom rlang ensym parse_expr
-#' @importFrom gmodels CrossTable
-#' @importFrom flextable flextable set_caption font hline_top hline_bottom hline add_footer_lines autofit
-#' @importFrom officer fp_border
-#' @importFrom stats setNames ftable
+#' @return flextable 对象
 #' @noRd
-#######实验室交叉表#########
+c_crosstable <- function(inds, data_cond, group_c, missing, row_colvar,
+                         format, table_title, footnote) {
 
-# 用途：实验室交叉表
+  # ============================================================
+  # Step 1：解析参数
+  # ============================================================
+  grp_parts <- strsplit(group_c, "|", fixed = TRUE)[[1]]
+  grpvar    <- trimws(grp_parts[1])
+  grpnames  <- trimws(strsplit(grp_parts[2], "/", fixed = TRUE)[[1]])
+  grpnames  <- grpnames[nchar(grpnames) > 0]
+  grp_num   <- length(grpnames)
 
-#基本参数：
-# data_cond=                 要分析的数据集|<条件>
-# group_c=                   组别变量|组别1/组别2/……；不能为缺失
-# missing=                  将缺失缺失值填补为XX；填写内容为format参数中等号左边的内容
-# row_colvar=                横向分析的变量（即首行显示的变量）/横向变量标签|纵向分析的变量（即首列显示的变量）/纵向变量标签；一般横向分析的变量（row_var）使用“治疗前”
-# format=                    分析变量的内容和标签；格式为：内容1=标签1|内容2=标签2|……；若内容为char,则需要带''
-# table_title=                表格的标题
-# footnote=                   表格的footnote
+  rc_parts <- strsplit(row_colvar, "|", fixed = TRUE)[[1]]
+  row_var   <- trimws(strsplit(rc_parts[1], "/", fixed = TRUE)[[1]][1])
+  row_label <- trimws(strsplit(rc_parts[1], "/", fixed = TRUE)[[1]][2])
+  col_var   <- trimws(strsplit(rc_parts[2], "/", fixed = TRUE)[[1]][1])
+  col_label <- trimws(strsplit(rc_parts[2], "/", fixed = TRUE)[[1]][2])
 
-#示例
+  cat_items <- strsplit(format, "|", fixed = TRUE)[[1]]
+  cat_items <- cat_items[nchar(trimws(cat_items)) > 0]
 
-# adcrslb <-read_excel("E:/Rlanguage/2 - system/函数/7.crosstable/SAS程序与数据/adcrslb.xlsx")
-
-# crosstable(
-# data_cond="adcrslb|RANDYN=='是' & SS=='是' & visitnum=='2' & lbtest=='白细胞数'"
-# group_c="arm3|试验组/阳性药组/安慰剂组"
-# missing=4
-# row_colvar="LBCLSIG_1/治疗前|LBCLSIG/治疗后"
-# format="1=正常|2=异常无临床意义|3=异常有临床意义|4=未查"
-# table_title="用药后6周±3天血常规指标（白细胞计数）的临床意义变化情况（SS）"
-# footnote="(％)表示以治疗前每种情况分别作为分母计算治疗后每种情况变化的百分数"
-# )
-
-
-
-
-
-c_crosstable <- function(inds,data_cond,group_c, missing, row_colvar, format,table_title, footnote)
-{
-
-  # library(readxl)
-  # library(dplyr)
-  # library(table1)
-  # library(tibble)
-  # library(kableExtra)
-  # library(officer)
-  # library(flextable)
-  # library(rlang)
-  # library(gmodels)
-  # library(tidyr)
-  # library(purrr)
-
-
-  ################## 拆分组别、分析变量 ################################
-
-  #拆分组别变量，组别名称；计算组别个数
-  grp_part <-  unlist(strsplit(group_c, "|", fixed = TRUE))
-
-  grpvar_ <-  grp_part[1]
-  grpnames_ <- grp_part[2]
-
-  s_ <- 1
-  grpnames_ <- unlist(strsplit(grpnames_, "/", fixed = TRUE))
-  #建立list来存储连续生成的组别名称
-  cat_grpname <- list()
-
-  while (s_ <= length(grpnames_) && grpnames_[s_] != "") {
-    cat_grpname[[s_]] <- grpnames_[s_]
-    s_ <- s_ + 1
-    grp_num=s_ - 1
+  .split_first_eq <- function(x) {
+    pos <- regexpr("=", x, fixed = TRUE)[1]
+    c(
+      gsub('^"|"$|^\'|\'$', "", trimws(substr(x, 1, pos - 1))),
+      trimws(substr(x, pos + 1, nchar(x)))
+    )
   }
+  cat_pairs  <- lapply(cat_items, .split_first_eq)
+  cat_vals   <- vapply(cat_pairs, `[[`, character(1), 1)
+  cat_labels <- vapply(cat_pairs, `[[`, character(1), 2)
+  cat_num    <- length(cat_vals)
 
-  #拆分分析的变量和标签
-  rowcolvarlabel_ <- unlist(strsplit(row_colvar, "|", fixed = TRUE))
-  rowvar_ <- strsplit(rowcolvarlabel_[1],"/",fixed = TRUE)[[1]][1]
-  rowlabel_ <- strsplit(rowcolvarlabel_[1],"/",fixed = TRUE)[[1]][2]
+  missing_val <- if (!is.null(missing)) as.character(missing) else NA_character_
 
-  colvar_ <- strsplit(rowcolvarlabel_[2],"/",fixed = TRUE)[[1]][1]
-  collabel_ <- strsplit(rowcolvarlabel_[2],"/",fixed = TRUE)[[1]][2]
-
-  #拆分分析变量中内容的具体分类，和标签
-  # 使用strsplit分割字符串
-
-  s_ <- 1
-  catlist_ <- unlist(strsplit(format, "|", fixed = TRUE))
-  #建立list来存储连续生成的变量名称
-  catcont_  <- list()
-  catlabel_ <- list()
-
-  while (s_ <= length(catlist_) && catlist_[s_] != "") {
-    # 假设每个部分都是"内容=标签"的形式
-    # 使用strsplit再次分割当前部分
-
-    part_split <- unlist(strsplit(catlist_[s_], "=", fixed = TRUE))
-    # var_parts_3 <- unlist(strsplit(catlist_[s_], "=", fixed = TRUE))
-
-    catcont_[[s_]] <- unlist(strsplit(catlist_[s_], "=", fixed = TRUE))[1]
-    catlabel_[[s_]] <- unlist(strsplit(catlist_[s_], "=", fixed = TRUE))[2]
-
-    # 索引递增
-    s_ <- s_ + 1
-    catnum_=s_-1
-  }
-
-
-
-  anavarorder_ <- data.frame(
-    colanavar_ = NA,
-    colanavarlabel_ = NA,
-    colvarcd_ = NA,
-    colanavarorder_ = NA,
-    grpcd_ = NA,
-    stringsAsFactors = FALSE
-  )
-
-  row_index <- 1
-
-  for (s_ in 1:grp_num) {
-    for (x_ in 1:catnum_) {
-      anavarorder_[row_index,"colanavar_"] <- catcont_[[x_]]
-      anavarorder_[row_index,"colanavarlabel_"] <- catlabel_[[x_]]
-      anavarorder_[row_index,"colvarcd_"] <- x_
-      anavarorder_[row_index,"colanavarorder_"] <- x_
-      anavarorder_[row_index,"grpcd_"] <- s_
-      row_index <- row_index+1
-    }
-  }
-
-
-  cond_n_ <- data_cond
-
-
+  # ============================================================
+  # Step 2：筛选数据
+  # ============================================================
   data_0 <- inds
-  cond_n_ <- parse_expr(cond_n_)
-  data_0 <- data_0  %>%
-    dplyr::filter(!!cond_n_) #根据条件筛选出数据框
+  data_0 <- data_0 |> dplyr::filter(!!rlang::parse_expr(data_cond))
+  data_0 <- data_0 |> dplyr::filter(.data[[grpvar]] %in% grpnames)
 
-  group_cond <- c(grpnames_)
+  d_0 <- data_0 |>
+    dplyr::select(dplyr::all_of(c(row_var, col_var, grpvar))) |>
+    stats::setNames(c("row_0", "col_0", "group_0")) |>
+    dplyr::mutate(
+      row_0 = dplyr::if_else(
+        (is.na(row_0) | trimws(as.character(row_0)) == "") & !is.na(missing_val),
+        missing_val, as.character(row_0)),
+      col_0 = dplyr::if_else(
+        (is.na(col_0) | trimws(as.character(col_0)) == "") & !is.na(missing_val),
+        missing_val, as.character(col_0)),
+      row_cd = match(row_0, cat_vals),
+      col_cd = match(col_0, cat_vals),
+      grp_cd = match(group_0, grpnames)
+    ) |>
+    dplyr::filter(!is.na(row_cd), !is.na(col_cd), !is.na(grp_cd))
 
-  data_0 <- data_0 %>%
-    dplyr::filter(.data[[grpvar_]] %in% group_cond )
+  # ============================================================
+  # Step 3：按组计算交叉频数
+  # ============================================================
+  result_blocks <- vector("list", grp_num)
 
-  row_var_expr <- rlang::ensym(rowvar_)
-  col_var_expr <- rlang::ensym(colvar_)
-  group_expr <- rlang::ensym(grpvar_)
+  for (g in seq_len(grp_num)) {
+    grp_data <- d_0 |> dplyr::filter(grp_cd == g)
 
-  d_0 <- data_0 %>%
-    dplyr::select({{row_var_expr}},{{col_var_expr}},{{group_expr}})
-  d_0 <- stats::setNames(d_0,c("row_0","col_0","group_0"))
-  d_0$grpcd_ <- NA
-  d_0$colvarcd_ <- NA
-  d_0$rowvarcd_ <- NA
+    freq_df <- grp_data |>
+      dplyr::count(col_cd, row_cd, name = "freq") |>
+      tidyr::complete(col_cd = seq_len(cat_num), row_cd = seq_len(cat_num),
+                      fill = list(freq = 0L))
 
+    col_totals <- freq_df |>
+      dplyr::group_by(row_cd) |>
+      dplyr::summarise(total = sum(freq), .groups = "drop")
+    denom <- stats::setNames(col_totals$total, as.character(col_totals$row_cd))
 
-  for (i in 1:nrow(d_0)){
-    for (s_ in 1:grp_num) {
-      if (d_0$group_0[i] == cat_grpname[[s_]]){
-        d_0$grpcd_[i] <-s_
-        break
-      }
+    row_totals <- freq_df |>
+      dplyr::group_by(col_cd) |>
+      dplyr::summarise(total = sum(freq), .groups = "drop")
 
+    grand_n <- sum(as.integer(denom), na.rm = TRUE)
+
+    .fmt_np <- function(n, den) {
+      n   <- as.integer(n)
+      den <- as.integer(den)
+      if (is.na(n))   n   <- 0L
+      if (is.na(den)) den <- 0L
+      if (den == 0L) return("0(0.00%)")
+      pct <- sprintf("%.2f", n / den * 100)
+      paste0(n, "(", pct, "%)")
     }
 
+    # 各列变量分类行
+    data_rows <- lapply(seq_len(cat_num), function(col_i) {
+      row_i_vals <- vapply(seq_len(cat_num), function(row_i) {
+        n <- freq_df$freq[freq_df$col_cd == col_i & freq_df$row_cd == row_i]
+        n <- if (length(n) == 0) 0L else as.integer(n)
+        .fmt_np(n, denom[as.character(row_i)])
+      }, character(1))
+
+      rn  <- row_totals$total[row_totals$col_cd == col_i]
+      rn  <- if (length(rn) == 0) 0L else as.integer(rn)
+      rpc <- if (grand_n > 0) sprintf("%.2f", rn / grand_n * 100) else "0.00"
+
+      c(paste0("  ", cat_labels[col_i]), row_i_vals, paste0(rn, "(", rpc, "%)"))
+    })
+
+    # 合计行
+    total_vals <- vapply(seq_len(cat_num), function(row_i) {
+      as.character(as.integer(denom[as.character(row_i)]))
+    }, character(1))
+    total_row <- c("  合计", total_vals, as.character(grand_n))
+
+    block_rows <- c(data_rows, list(total_row))
+
+    # 多组别：插入组名行
+    if (grp_num > 1) {
+      grp_header <- c(grpnames[g], rep("", cat_num + 1))
+      block_rows <- c(list(grp_header), block_rows)
+    }
+
+    block_df <- as.data.frame(do.call(rbind, block_rows), stringsAsFactors = FALSE)
+    result_blocks[[g]] <- block_df
   }
 
+  out_df <- do.call(rbind, result_blocks)
+  rownames(out_df) <- NULL
 
-  for (i in 1:nrow(d_0)) {
-    if (is.na(d_0$row_0[i])){
-      d_0$row_0[i] <- missing
-    }
-    if (is.na(d_0$col_0[i])){
-      d_0$col_0[i] <- missing
-    }
-  }
+  col_header_names <- c(col_label, cat_labels, "合计")
+  names(out_df) <- col_header_names
 
-  for (i in 1:nrow(d_0)){
-    for (s_ in 1:catnum_) {
-      if (d_0$row_0[i]==catcont_[[s_]]) {
-        d_0$rowvarcd_[i] <- s_
-      }
+  # ============================================================
+  # Step 4：构造 varlist，调用 report_table()
+  # ============================================================
+  col_names_safe <- make.names(col_header_names, unique = TRUE)
+  names(out_df)  <- col_names_safe
 
-      if (d_0$col_0[i]==catcont_[[s_]]) {
-        d_0$colvarcd_[i] <- s_
-      }
-    }
-  }
-
-
-
-  #生成频数表
-  n1_ <- data.frame(stats::ftable(d_0,row.vars = c("colvarcd_","rowvarcd_"),col.vars = "grpcd_"))
-  n1_ <- n1_ %>%
-    tidyr::pivot_wider(names_from = rowvarcd_, values_from = Freq, values_fill = 0)
-  char_vector <- unlist(lapply(catcont_, as.character))
-  n1_ <- n1_ %>%
-    dplyr::select(grpcd_,colvarcd_,char_vector)
-  n1_$total <- rowSums(n1_[,!names(n1_) %in% c("grpcd_","colvarcd_")])
-  n1_$grpcd_ <- as.character(n1_$grpcd_)
-  n1_$colvarcd_ <- as.character(n1_$colvarcd_)
-
-
-  n2_<-list()
-  for (i in 1:grp_num){
-    na_row <- rep(NA, ncol(n1_))
-    na_row <- as.data.frame(t(na_row))
-    names(na_row) <- names(n1_)
-    na_row[1,1] <- "row_total"
-    na_row[1,2] <- "row_total"
-    p_name <- paste0("p_", 1:catnum_)
-    np_name <- paste0("np_", 1:(catnum_))
-    denom_cols <- c(p_name,"p_total",np_name,"np_total")
-    n2_[[i]] <- n1_ %>% dplyr::filter(grpcd_ %in% i)
-    inter_frame <- as.data.frame(n2_[[i]])
-    n2_[[i]] <- rbind(inter_frame,na_row)
-    n2_col_total <- data.frame(n2_[[i]]) %>%
-      dplyr::select(-c(grpcd_, colvarcd_)) %>%
-      dplyr::summarise_all(list(~sum(., na.rm = TRUE)))
-    for (s_ in 1:(catnum_+1)){
-      n2_[[i]][catnum_+1,2+s_] <- n2_col_total[1,s_]
-      # n2_[[i]]$row_total[s_] <- n2_col_total[1,s_]
-      n2_[[i]][denom_cols] <- NA
-
-    }
-
-  }
-
-  for (i in 1:grp_num) {
-    for (s_ in 1:(catnum_+1)) {
-      for (z_ in 1:(catnum_+1)){
-        n2_[[i]][z_,(3+catnum_+s_)] <-  sprintf("%.2f",((n2_[[i]][z_,(2+s_)])/(n2_[[i]][(catnum_+1),(2+s_)]))*100)
-      }
-    }
-  }
-
-  for (i in 1:grp_num) {
-    for (s_ in 1:(catnum_+1)) {
-      if(n2_[[i]][(catnum_+1),(2+s_)] == 0){
-        n2_[[i]][,(3+catnum_+s_)] <- "0.00"
-      }
-
-    }
-  }
-
-  for (i in 1:grp_num) {
-    for (s_ in 1:(catnum_+1)) {
-      for (z_ in 1:(catnum_+1)){
-        n2_[[i]][z_,(4+catnum_+catnum_+s_)] <- paste((n2_[[i]][z_,(2+s_)]),"(",n2_[[i]][z_,(3+catnum_+s_)],"%",")")
-        n2_[[i]][catnum_+1,(4+catnum_+catnum_+s_)] <-(n2_[[i]][(catnum_+1),(2+s_)])
-      }
-    }
-  }
-
-
-
-
-
-
-
-  n3_ <- list()
-  for (i in 1:grp_num){
-    np_name <- paste0("np_", 1:(catnum_))
-    n3_[[i]] <- n2_[[i]] %>% select(colvarcd_,np_name,np_total)
-    for (s_ in 1:catnum_){
-      n3_[[i]]$colvarcd_[1+catnum_]<-"\u3000合计"
-    }
-    na_row <- rep(NA, ncol(n3_[[i]]))
-    names(na_row) <- names(n3_[[i]])
-    n3_[[i]] <- rbind(na_row,n3_[[i]])
-    n3_[[i]][1,1] <- cat_grpname[[i]]
-    for (z_ in 1:catnum_) {
-      n3_[[i]][z_+1,1] <- paste0("\u3000", catlabel_[[z_]])
-    }
-    col_name <- unlist(catlabel_)
-    row_col_name <- paste(collabel_,"/",rowlabel_ )
-    names(n3_[[i]]) <- c(row_col_name,col_name,"合计")
-  }
-
-  # ----------------------------define param----------------------------
-  caption_paragraph <- flextable::as_paragraph(
-    flextable::as_chunk(table_title, props = officer::fp_text(font.family = "Times New Roman",font.size = 10.5))
+  varlist_str <- paste(
+    mapply(function(safe, orig) paste0(safe, "/", orig),
+           col_names_safe, col_header_names),
+    collapse = "|"
   )
 
-  caption_paragraph_props <- officer::fp_par(padding = 0)
-  # --------------------------------------------------------------------
+  # 多重表头
+  doubleheader <- list(
+    list(label = "",        cols = col_names_safe[1]),
+    list(label = row_label, cols = col_names_safe[2:(cat_num + 1)]),
+    list(label = "",        cols = col_names_safe[cat_num + 2])
+  )
 
-  table_out <-  dplyr::bind_rows(n3_)
-  ft <- flextable::flextable(table_out)
-  ft <- flextable::color(ft,part = 'footer', color = 'black')
-  ft <- flextable::set_caption(ft, caption = caption_paragraph,fp_p=caption_paragraph_props,align_with_table=TRUE)
-  ft <- flextable::set_table_properties(ft, align="left")
-  ft <- flextable::font(ft,fontname="Times New Roman",part="all")
-  ft <- flextable::hline_top(ft,border = officer::fp_border(color="black",width=1.5),part="header")
-  ft <- flextable::hline_bottom(ft,border = officer::fp_border(color="black",width=1.5),part="body")
-  ft <- flextable::hline(ft,i=1,border = officer::fp_border(color="black",width=1),part="header")
-  ft <- flextable::add_footer_lines(ft,footnote)
-  if (exists('table_out', envir = .GlobalEnv)) {
-    rm(table_out, envir = .GlobalEnv)
+  # 加粗行：组名行
+  if (grp_num > 1) {
+    block_size <- cat_num + 2L
+    bold_idx <- seq(1L, grp_num * block_size, by = block_size)
+  } else {
+    bold_idx <- integer(0)
   }
-  ft <- flextable::autofit(ft)
+
+  ft <- report_table(
+    data         = out_df,
+    varlist      = varlist_str,
+    title        = table_title,
+    footnote     = footnote,
+    headerjust   = "center",
+    col1just     = "left",
+    columnjust   = "center",
+    autoaddnum   = "yes",
+    doubleheader = doubleheader,
+    bold_rows    = bold_idx
+  )
+
+  attr(ft, "hbr_varlist")  <- varlist_str
+  attr(ft, "hbr_title")    <- table_title
+  attr(ft, "hbr_footnote") <- footnote
+  attr(ft, "hbr_styling_params") <- list(
+    headerjust = "center", columnjust = "center", col1just = "left",
+    doubleheader = doubleheader,
+    bold_rows = if (length(bold_idx) > 0) bold_idx else NULL
+  )
+
   ft
 }

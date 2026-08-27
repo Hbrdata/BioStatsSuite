@@ -1,278 +1,168 @@
-#' covancova
-#'
-#' @description A utils function
-#'
-#' @return The return value, if any, from executing the utility.
-#'
-#' @importFrom dplyr filter select group_by summarise bind_rows
-#' @importFrom tidyr pivot_wider
-#' @importFrom rlang ensym parse_expr
-#' @importFrom car Anova
-#' @importFrom emmeans emmeans
-#' @importFrom stats lm
-#' @importFrom graphics pairs
-#' @importFrom flextable flextable set_caption font hline_top hline_bottom hline add_footer_lines autofit
-#' @importFrom officer fp_border
-#' @noRd
-#######c_srt 秩和检验#########
-
-# 用途：秩和检验；也可仅输出统计描述部分；
-
-#基本参数：
-# data_cond=		要进行统计描述的数据集|<筛选条件
-# group_c=	分组变量及挑选组别
-# varlist=	"difftbsum/用药后6周±3天|SITEID/中心|TSORRES0sum/基线"
-# title1=    表格1：输出的协方差分析(ANCOVA)结果表格的title；
-# title2=   表格2：输出的最小二乘均数和95%可信区间表格的title；
-# footnote1=	"底注1"
-# footnote2=	"底注2")
-
-
-
-
-#示例
-
-# adts <-read_excel("E:/Rlanguage/2 - system/函数/covancova/SAS程序与数据/adts.xlsx")
+# =============================================================================
+# utils_covancova.R
+# 协方差分析（ANCOVA）函数（R 包内部版本）
 #
-# covancova(data_cond=			"adts|RANDYN=='是' & FAS=='是'  & tstest=='胃痛' & visitnum=='2'"
-#           ,group_c=	"arm3|试验组/阳性药组/安慰剂组"
-#           ,varlist=	"difftbsum/用药后6周±3天|SITEID/中心|TSORRES0sum/基线"
-#           ,title1=   "受试者中医证候积分相对基线变化差值(用药后6周±3天)的协方差分析（ANCOVA）结果－因素分析" #表格1：输出的协方差分析(ANCOVA)结果表格的title；
-#           ,title2=   "受试者中医证候积分相对基线变化差值(用药后6周±3天)的协方差分析（ANCOVA）结果－组间比较"  #表格2：输出的最小二乘均数和95%可信区间表格的title；
-#           ,footnote1=	"底注1"
-#           ,footnote2=	"底注2")
+# 输出两张表格：
+#   表 1（因素分析）：各因素的 F 值和 P 值
+#   表 2（组间比较）：各组 LSMean 及 95%CI，以及组对比较
+# =============================================================================
 
+#' 协方差分析
+#'
+#' @param inds       数据框对象
+#' @param data_cond  数据筛选条件
+#' @param group_c    分组描述："分组变量名|组名1/组名2/..."
+#' @param varlist    变量描述："因变量/标签|中心变量/标签|基线变量/标签"
+#' @param title1     表 1 标题
+#' @param title2     表 2 标题
+#' @param footnote1  表 1 底注
+#' @param footnote2  表 2 底注
+#'
+#' @return list(table1=flextable, table2=flextable)
+#' @noRd
+covancova <- function(inds, data_cond, group_c, varlist,
+                      title1, title2, footnote1, footnote2) {
 
+  # ============================================================
+  # Step 1：解析参数
+  # ============================================================
+  grp_parts <- strsplit(group_c, "|", fixed = TRUE)[[1]]
+  grpvar    <- trimws(grp_parts[1])
+  grpnames  <- trimws(strsplit(grp_parts[2], "/", fixed = TRUE)[[1]])
+  grpnames  <- grpnames[nchar(grpnames) > 0]
 
+  vl_parts <- strsplit(varlist, "|", fixed = TRUE)[[1]]
 
+  ana_var   <- trimws(strsplit(vl_parts[1], "/")[[1]][1])
+  ana_label <- trimws(strsplit(vl_parts[1], "/")[[1]][2])
 
-covancova <- function(inds,data_cond,group_c,varlist,title1,title2,footnote1,footnote2)
-{
+  site_var   <- trimws(strsplit(vl_parts[2], "/")[[1]][1])
+  site_label <- trimws(strsplit(vl_parts[2], "/")[[1]][2])
 
+  base_var   <- trimws(strsplit(vl_parts[3], "/")[[1]][1])
+  base_label <- trimws(strsplit(vl_parts[3], "/")[[1]][2])
 
-
-  ###############拆分组别，组别名称；计算组别个数
-
-  grp_part <-  unlist(strsplit(group_c, "|", fixed = TRUE))
-
-  grpvar_ <-  grp_part[1]
-  grpnames_ <- grp_part[2]
-
-  s_ <- 1
-  grpnames_ <- unlist(strsplit(grpnames_, "/", fixed = TRUE))
-
-  ########计算置信区间百分比
-
-
-  #建立list来存储连续生成的组别名称
-  cat_grpname <- list()
-
-  while (s_ <= length(grpnames_) && grpnames_[s_] != "") {
-    cat_grpname[[s_]] <- grpnames_[s_]
-    s_ <- s_ + 1
-    grp_num=s_ - 1
-  }
-
-  #############直接根据条件筛选数据集
-
-  cond_n_ <- data_cond
-
+  # ============================================================
+  # Step 2：筛选数据
+  # ============================================================
   data_0 <- inds
-  cond_n_ <- rlang::parse_expr(cond_n_)
-  data_0 <- data_0  %>%
-    dplyr::filter(!!cond_n_) #根据条件筛选出数据框
+  data_0 <- data_0 |> dplyr::filter(!!rlang::parse_expr(data_cond))
+  data_0 <- data_0 |> dplyr::filter(.data[[grpvar]] %in% grpnames)
 
-  group_cond <- c(grpnames_)
+  d_0 <- data_0 |>
+    dplyr::select(dplyr::all_of(c(ana_var, site_var, base_var, grpvar))) |>
+    stats::setNames(c("anavar_0", "siteno_0", "base_0", "group_0")) |>
+    dplyr::mutate(
+      siteno_0 = as.factor(siteno_0),
+      group_0  = factor(group_0, levels = grpnames)
+    )
 
-  data_0 <- data_0 %>%
-    dplyr::filter(.data[[grpvar_]] %in% group_cond )
+  # ============================================================
+  # Step 3：拟合协方差模型（III类平方和）
+  # ============================================================
+  ancova_model <- stats::lm(anavar_0 ~ siteno_0 + group_0 + base_0, data = d_0)
+  anova_res    <- car::Anova(ancova_model, type = "III")
+  emm_res      <- emmeans::emmeans(ancova_model, ~ group_0)
+  pairs_res    <- pairs(emm_res)
 
+  # ============================================================
+  # Step 4：构造表 1（因素分析）
+  # ============================================================
+  anova_df <- as.data.frame(anova_res)
 
-  #################拆分分析变量及其标签
-
-  varlist_parts_1 <- unlist(strsplit(varlist, "|", fixed = TRUE))
-
-  #因变量
-
-  anavarlist_ <-  varlist_parts_1[1]
-  anavar_ <- strsplit(anavarlist_, "/") [[1]][1]
-  avalabel_ <- strsplit(anavarlist_, "/") [[1]][2]
-
-  #中心
-
-  sitenolist_ <- varlist_parts_1[2]
-  siteno_ <- strsplit(sitenolist_, "/") [[1]][1]
-  sitelabel_ <- strsplit(sitenolist_, "/") [[1]][2]
-
-  #协变量：基线
-
-  baselist_ <- varlist_parts_1[3]
-  base_ <- strsplit(baselist_,"/")[[1]][1]
-  baselabel <- strsplit(baselist_,"/")[[1]][2]
-
-  ##################函数中分析数据集
-
-  anavar_expr <- rlang::ensym(anavar_)
-  siteno_expr <- rlang::ensym(siteno_)
-  base_expr <- rlang::ensym(base_)
-  group_expr <- rlang::ensym(grpvar_)
-  d_0 <- data_0 %>%
-    dplyr::select({{anavar_expr}},{{siteno_expr}},{{base_expr}},{{group_expr}})
-
-  d_0 <- stats::setNames(d_0,c("anavar_0","siteno_0","base_0","group_0"))
-
-  #对组别进行排序
-  d_0$grpcd_0 <- NA
-
-  for (i in 1:nrow(d_0)){
-    for (s_ in 1:grp_num) {
-      if (d_0$group_0[i] == cat_grpname[[s_]]){
-        d_0$grpcd_0[i] <-s_
-        break
-      }
-
-    }
-  }
-  ################协方差分析
-
-
-  # 拟合协方差模型
-  d_0$siteno_0 <- as.factor(d_0$siteno_0)
-  d_0$group_0 <- factor(d_0$group_0,levels = c(grpnames_))
-
-
-  ancova_model <- stats::lm(anavar_0 ~ siteno_0 + group_0+base_0, data = d_0)
-
-  # 查看结果
-  summary(ancova_model)
-
-  # Anova(ancova_model, type = "III")
-  # emmeans(ancova_model, ~ group_0)
-  # pairs(emmeans(ancova_model, ~ group_0))  # 这将展示所有组合的均值差
-
-  ###############制表############
-  ###########因素分析表######
-
-  t_1 <- data.frame(car::Anova(ancova_model, type = "III"))
-  t_1$var <- NA
-  t_1[1,which(names(t_1) == "var")]<-"Intercept"
-  t_1[2,which(names(t_1) == "var")]<-"siteno_0"
-  t_1[3,which(names(t_1) == "var")]<-"group_0"
-  t_1[4,which(names(t_1) == "var")]<-"base_0"
-  t_1[5,which(names(t_1) == "var")]<-"Residuals"
-
-  t_1_1 <- t_1 %>%
-    dplyr::select(var,Sum.Sq,Df,F.value,Pr..F.)
-  t_1_1 <- setNames(t_1_1,c("var","sum_sq","df","F_value","p_value"))
-  t_1_1$sum_sq <- sprintf("%.2f",t_1_1$sum_sq)
-  t_1_1$df <- as.character(t_1_1$df)
-  t_1_1$F_value <- sprintf("%.2f",t_1_1$F_value)
-
-  for (i in 1:nrow(t_1_1)-1) {
-    p_value <- t_1_1$p_value[i]
-    if(isTRUE(as.numeric(p_value) < 0.0001)){
-      t_1_1$p_value[i] <- "<.0001"
-    }else{
-      t_1_1$p_value[i] <- sprintf("%.4f",as.numeric(p_value))
-    }
+  .fmt_p <- function(p) {
+    if (is.na(p)) return(NA_character_)
+    if (p < 0.0001) "<.0001" else sprintf("%.4f", p)
   }
 
-
-  t_1_1 <-t_1_1[-which(t_1_1$var == "Residuals"),]
-  t_1_1$指标 <- NA
-  t_1_1$因素 <- NA
-  t_1_1$F <- NA
-  t_1_1$P值 <- NA
-  t_1_1$指标[1] <- avalabel_
-
-  t_1_1[which(t_1_1$var == "siteno_0"),names(t_1_1) == "因素"] <- sitelabel_
-  t_1_1[which(t_1_1$var == "group_0"),names(t_1_1) == "因素"] <- "治疗"
-  t_1_1[which(t_1_1$var == "base_0"),names(t_1_1) == "因素"] <- baselabel
-
-  for (i in 2:nrow(t_1_1)) {
-    t_1_1[i,names(t_1_1) == "F"] <- t_1_1[i,names(t_1_1) == "F_value"]
-    t_1_1[i,names(t_1_1) == "P值"] <- t_1_1[i,names(t_1_1) == "p_value"]
-  }
-
-  table_out_1 <- t_1_1 %>%
-    dplyr::select(指标,因素,F,P值)
-  flextable::flextable(table_out_1)
-
-
-  ############ 组间比较 ############
-
-
-
-  t_2_1 <- data.frame(emmeans::emmeans(ancova_model, ~ group_0))
-  t_2_1$指标<-NA
-  t_2_1$治疗水平及差值 <- t_2_1$group_0
-  t_2_1$LSMean <- sprintf("%.2f",t_2_1$emmean)
-  t_2_1$`95% CIL` <- sprintf("%.2f",t_2_1$lower.CL)
-  t_2_1$`95% CIU` <- sprintf("%.2f",t_2_1$upper.CL)
-  t_2_1 <- t_2_1 %>%
-    dplyr::select(指标,治疗水平及差值,LSMean,`95% CIL`,`95% CIU`)
-
-
-  t_2_title <- data.frame(matrix(NA, nrow = 1, ncol = length(names(t_2_1))))
-  names(t_2_title) <- names(t_2_1)
-  t_2_title[1,1] <- avalabel_
-
-  t_2_2 <- data.frame(graphics::pairs(emmeans::emmeans(ancova_model, ~ group_0)))
-  t_2_2$指标 <- NA
-  t_2_2$治疗水平及差值 <- t_2_2$contrast
-  t_2_2$LSMean <- sprintf("%.2f",t_2_2$estimate)
-  t_2_2$`95% CIL` <- sprintf("%.2f",t_2_2$estimate - 1.96 * t_2_2$SE)
-  t_2_2$`95% CIU` <- sprintf("%.2f",t_2_2$estimate + 1.96 * t_2_2$SE)
-  t_2_2 <- t_2_2 %>%
-    dplyr::select(指标,治疗水平及差值,LSMean,`95% CIL`,`95% CIU`)
-
-  table_out_2 <- dplyr::bind_rows(t_2_title,t_2_1,t_2_2)
-
-  # ----------------------------define param----------------------------
-  caption_paragraph1 <- flextable::as_paragraph(
-    flextable::as_chunk(title1, props = officer::fp_text(font.family = "Times New Roman",font.size = 10.5))
+  factor_map <- list(
+    siteno_0 = list(label = site_label, var = "siteno_0"),
+    group_0  = list(label = "治疗",     var = "group_0"),
+    base_0   = list(label = base_label, var = "base_0")
   )
 
-  caption_paragraph2 <- flextable::as_paragraph(
-    flextable::as_chunk(title2, props = officer::fp_text(font.family = "Times New Roman",font.size = 10.5))
+  factor_rows <- lapply(names(factor_map), function(v) {
+    fm  <- factor_map[[v]]
+    row <- anova_df[rownames(anova_df) == v, , drop = FALSE]
+    f_v <- if (nrow(row) > 0 && !is.na(row[["F value"]])) sprintf("%.2f", row[["F value"]]) else NA_character_
+    p_v <- if (nrow(row) > 0) .fmt_p(row[["Pr(>F)"]]) else NA_character_
+    c(NA_character_, fm$label, f_v, p_v)
+  })
+
+  header_row_t1 <- c(ana_label, NA_character_, NA_character_, NA_character_)
+  t1_rows       <- c(list(header_row_t1), factor_rows)
+  t1_df         <- as.data.frame(do.call(rbind, t1_rows), stringsAsFactors = FALSE)
+  names(t1_df)  <- c(".label", ".factor", ".F", ".P")
+
+  # ============================================================
+  # Step 5：构造表 2（组间比较）
+  # ============================================================
+  emm_df    <- as.data.frame(emm_res)
+  pairs_df  <- as.data.frame(pairs_res)
+
+  emm_rows <- lapply(seq_len(nrow(emm_df)), function(i) {
+    c(as.character(emm_df$group_0[i]),
+      sprintf("%.2f", emm_df$emmean[i]),
+      sprintf("%.2f", emm_df$lower.CL[i]),
+      sprintf("%.2f", emm_df$upper.CL[i]))
+  })
+
+  pairs_rows <- lapply(seq_len(nrow(pairs_df)), function(i) {
+    se_i  <- pairs_df$SE[i]
+    est_i <- pairs_df$estimate[i]
+    c(as.character(pairs_df$contrast[i]),
+      sprintf("%.2f", est_i),
+      sprintf("%.2f", est_i - 1.96 * se_i),
+      sprintf("%.2f", est_i + 1.96 * se_i))
+  })
+
+  header_row_t2 <- c(ana_label, NA_character_, NA_character_, NA_character_)
+  t2_rows       <- c(list(header_row_t2), emm_rows, pairs_rows)
+  t2_df         <- as.data.frame(do.call(rbind, t2_rows), stringsAsFactors = FALSE)
+  names(t2_df)  <- c(".label", ".lsmean", ".cil", ".ciu")
+
+  # ============================================================
+  # Step 6：调用 report_table() 出表
+  # ============================================================
+  varlist_t1 <- ".label/指标|.factor/因素|.F/F值|.P/P值"
+
+  ft1 <- report_table(
+    data       = t1_df,
+    varlist    = varlist_t1,
+    title      = title1,
+    footnote   = footnote1,
+    headerjust = "center",
+    col1just   = "left",
+    columnjust = "center",
+    autoaddnum = "yes",
+    bold_rows  = 1L
+  )
+  attr(ft1, "hbr_varlist")  <- varlist_t1
+  attr(ft1, "hbr_title")    <- title1
+  attr(ft1, "hbr_footnote") <- footnote1
+  attr(ft1, "hbr_styling_params") <- list(
+    headerjust = "center", columnjust = "center", col1just = "left", bold_rows = 1L
   )
 
-  caption_paragraph_props <- officer::fp_par(padding = 0)
-  # --------------------------------------------------------------------
+  varlist_t2 <- ".label/治疗水平及差值|.lsmean/LSMean|.cil/95% CIL|.ciu/95% CIU"
 
+  ft2 <- report_table(
+    data       = t2_df,
+    varlist    = varlist_t2,
+    title      = title2,
+    footnote   = footnote2,
+    headerjust = "center",
+    col1just   = "left",
+    columnjust = "center",
+    autoaddnum = "yes",
+    bold_rows  = 1L
+  )
+  attr(ft2, "hbr_varlist")  <- varlist_t2
+  attr(ft2, "hbr_title")    <- title2
+  attr(ft2, "hbr_footnote") <- footnote2
+  attr(ft2, "hbr_styling_params") <- list(
+    headerjust = "center", columnjust = "center", col1just = "left", bold_rows = 1L
+  )
 
-
-  #绘制表格
-
-  ft1 <- flextable::flextable(table_out_1)
-  ft1 <- flextable::color(ft1,part = 'footer', color = 'black')
-  ft1 <- flextable::set_caption(ft1, caption = caption_paragraph1,fp_p=caption_paragraph_props,align_with_table=TRUE)
-  ft1 <- flextable::set_table_properties(ft1, align="left")
-  ft1 <- flextable::font(ft1,fontname="SimSun",part="all")
-  ft1 <- flextable::font(ft1,fontname="Times New Roman",part="all")
-  ft1 <- flextable::hline_top(ft1,border = officer::fp_border(color="black",width=1.5),part="header")
-  ft1 <- flextable::hline_bottom(ft1,border = officer::fp_border(color="black",width=1.5),part="body")
-  ft1 <- flextable::hline(ft1,i=1,border = officer::fp_border(color="black",width=1),part="header")
-  ft1 <- flextable::add_footer_lines(ft1,footnote1)
-  ft1 <- flextable::autofit(ft1)
-  ft1 <<- ft1
-
-  ft2 <- flextable::flextable(table_out_2)
-  ft2 <- flextable::color(ft2,part = 'footer', color = 'black')
-  ft2 <- flextable::set_caption(ft2, caption = caption_paragraph2,fp_p=caption_paragraph_props,align_with_table=TRUE)
-  ft2 <- flextable::set_table_properties(ft2, align="left")
-  ft2 <- flextable::font(ft2,fontname="SimSun",part="all")
-  ft2 <- flextable::font(ft2,fontname="Times New Roman",part="all")
-  ft2 <- flextable::hline_top(ft2,border = officer::fp_border(color="black",width=1.5),part="header")
-  ft2 <- flextable::hline_bottom(ft2,border = officer::fp_border(color="black",width=1.5),part="body")
-  ft2 <- flextable::hline(ft2,i=1,border = officer::fp_border(color="black",width=1),part="header")
-  ft2 <- flextable::add_footer_lines(ft2,footnote2)
-  ft2 <- flextable::autofit(ft2)
-  ft2
-
-  ft2<<-ft2
-
-  return(list(table1 = ft1, table2 = ft2))
-
+  list(table1 = ft1, table2 = ft2)
 }
-

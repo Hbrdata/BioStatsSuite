@@ -7,6 +7,7 @@ app_server <- function(input, output, session) {
 
   data_upload <- mod_dataUpload_server("dataUpload_1")
   analyze_result <- mod_analyze_server("analyze_1", data_upload)
+  report_config <- mod_report_config_server("report_config_1", data_upload, analyze_result)
 
 
   options(shiny.maxRequestSize = 400*1024^2)
