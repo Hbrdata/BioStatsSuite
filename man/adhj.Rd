@@ -5,7 +5,7 @@
 \alias{adhj}
 \title{ADHJ}
 \format{
-An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 179 rows and 36 columns.
+An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 165 rows and 36 columns.
 }
 \source{
 <https://github.com/Hbrdata/BioStatsSuite/blob/master/data-raw/adhj.xlsx>

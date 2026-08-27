@@ -5,7 +5,7 @@
 \alias{tyypspa}
 \title{TYYPSPA}
 \format{
-An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 7920 rows and 32 columns.
+An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 5976 rows and 29 columns.
 }
 \source{
 <https://github.com/Hbrdata/BioStatsSuite/blob/master/data-raw/tyypspa.sas7bdat>

@@ -5,7 +5,7 @@
 \alias{adsl}
 \title{ADSL}
 \format{
-An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 220 rows and 11 columns.
+An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 200 rows and 11 columns.
 }
 \source{
 <https://github.com/Hbrdata/BioStatsSuite/blob/master/data-raw/adsl.xlsx>

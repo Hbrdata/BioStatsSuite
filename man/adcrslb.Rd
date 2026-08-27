@@ -5,7 +5,7 @@
 \alias{adcrslb}
 \title{ADCRSLB}
 \format{
-An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 39600 rows and 39 columns.
+An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 16500 rows and 39 columns.
 }
 \source{
 <https://github.com/Hbrdata/BioStatsSuite/blob/master/data-raw/adcrslb.xlsx>

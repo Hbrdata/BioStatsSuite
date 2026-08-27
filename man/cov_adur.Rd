@@ -5,7 +5,7 @@
 \alias{cov_adur}
 \title{COV_ADUR}
 \format{
-An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 480 rows and 30 columns.
+An object of class \code{tbl_df} (inherits from \code{tbl}, \code{data.frame}) with 428 rows and 30 columns.
 }
 \source{
 <https://github.com/Hbrdata/BioStatsSuite/blob/master/data-raw/cov_adur.xlsx>
