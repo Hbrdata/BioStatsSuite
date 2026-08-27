@@ -284,3 +284,21 @@ h1 {
 .shiny-progress .progress-text {
   color: white !important;
 }
+
+/* Drag-and-drop for report config content rows */
+.rcfg-sortable-row {
+  transition: opacity 0.2s ease, box-shadow 0.2s ease;
+}
+.rcfg-sortable-row.rcfg-dragging {
+  opacity: 0.4;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.rcfg-sortable-row.rcfg-drag-over-top {
+  border-top: 3px solid #3498db !important;
+}
+.rcfg-sortable-row.rcfg-drag-over-bottom {
+  border-bottom: 3px solid #3498db !important;
+}
+.rcfg-drag-handle:hover {
+  color: #495057 !important;
+}
